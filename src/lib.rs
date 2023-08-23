@@ -250,7 +250,7 @@ fn binary_to_bcd(binary: u8) -> u8 {
 }
 
 /// A calendar year.
-#[derive(Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
 struct Year(u8);
 
 impl TryFrom<u8> for Year {
@@ -273,7 +273,7 @@ impl From<Year> for u8 {
 }
 
 /// A calendar month.
-#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 enum Month {
     January = 0x01,
     February = 0x02,
