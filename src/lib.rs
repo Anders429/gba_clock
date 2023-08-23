@@ -24,6 +24,7 @@ const ENABLE: *mut bool = 0x080000c8 as *mut bool;
 const IME: *mut bool = 0x0400_0208 as *mut bool;
 
 /// Errors that may occur when interacting with the RTC.
+#[derive(Debug)]
 pub enum Error {
     PowerFailure,
     InvalidStatus,
@@ -598,6 +599,7 @@ fn write_datetime(
 /// This struct stores some state to represent the current century. As such, reads using a `Clock`
 /// are not limited to the years 2000-2099; instead, any year that can be represented by the `time`
 /// crate can be stored here.
+#[derive(Debug)]
 pub struct Clock {
     /// The current century.
     ///
