@@ -15,8 +15,8 @@ const RW_MODE: *mut RwMode = 0x080000c6 as *mut RwMode;
 
 /// I/O Port Control.
 ///
-/// By setting this to `true`, the General Purpose I/O (GPIO) will be both readable and writable.
-const ENABLE: *mut bool = 0x080000c8 as *mut bool;
+/// By setting this to `1`, the General Purpose I/O (GPIO) will be both readable and writable.
+const ENABLE: *mut u16 = 0x080000c8 as *mut u16;
 
 /// Interrupt Master Enable.
 ///
@@ -57,6 +57,7 @@ enum Command {
 ///
 /// Both SCK and CS should always be set high. Therefore, the only relevant bit is SIO, which can
 /// either be set low to receive data or set high to send data, a single bit at a time.
+#[repr(u16)]
 enum RwMode {
     /// Sets SIO low, allowing data to be received from the RTC.
     Read = 5,
@@ -630,7 +631,7 @@ impl Clock {
     pub fn new() -> Result<Self, Error> {
         // Enable operations with the RTC via General Purpose I/O (GPIO).
         unsafe {
-            ENABLE.write_volatile(true);
+            ENABLE.write_volatile(1);
         }
 
         // Check status.
