@@ -9,7 +9,7 @@ use gpio::{enable, is_test_mode, reset, set_status, try_read_datetime, try_read_
 use time::{Duration, PrimitiveDateTime};
 
 /// Errors that may occur when interacting with the RTC.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Error {
     PowerFailure,
     TestMode,
