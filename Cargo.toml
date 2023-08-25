@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-deranged = "0.3.8"
+deranged = {version = "0.3.8", default-features = false}
 time = {version = "0.3.26", default-features = false}
 
 [dev-dependencies]
