@@ -1,9 +1,11 @@
 #![no_std]
 
 mod bcd;
+mod date_time;
 
 use bcd::Bcd;
 use core::ops::{BitAnd, BitOr};
+use date_time::{calculate_rtc_offset, Day, Hour, Minute, Second, Year};
 use time::{Duration, Month, PrimitiveDateTime};
 
 /// I/O Port Data.
@@ -235,36 +237,6 @@ fn try_read_status() -> Result<Status, Error> {
     status.try_into()
 }
 
-/// A calendar year.
-///
-/// The contained value must be less than `99`.
-#[derive(Debug, Eq, PartialEq)]
-struct Year(u8);
-
-/// A day within a month.
-///
-/// The contained value must not be `0` and must be less than `32`.
-#[derive(Debug, Eq, PartialEq)]
-struct Day(u8);
-
-/// An hour of the day.
-///
-/// The contained value must be less than `24`.
-#[derive(Debug, Eq, PartialEq)]
-struct Hour(u8);
-
-/// A minute within an hour.
-///
-/// The contained value must be less than `60`.
-#[derive(Debug, Eq, PartialEq)]
-struct Minute(u8);
-
-/// A second within a minute.
-///
-/// The contained value must be less than `60`.
-#[derive(Debug, Eq, PartialEq)]
-struct Second(u8);
-
 fn reset() {
     // Disable interrupts, storing the previous value.
     //
@@ -395,37 +367,6 @@ fn set_status(status: Status) {
     unsafe {
         IME.write_volatile(previous_ime);
     }
-}
-
-/// Calculates the number of seconds since the RTC's origin date.
-fn calculate_rtc_offset(
-    year: Year,
-    month: Month,
-    day: Day,
-    hour: Hour,
-    minute: Minute,
-    second: Second,
-) -> u32 {
-    let days = year.0 as u32 * 365
-        + (year.0 as u32 - 1) / 4
-        + 1
-        + match month {
-            Month::January => 0,
-            Month::February => 31,
-            Month::March => 59,
-            Month::April => 90,
-            Month::May => 120,
-            Month::June => 151,
-            Month::July => 181,
-            Month::August => 212,
-            Month::September => 243,
-            Month::October => 273,
-            Month::November => 304,
-            Month::December => 334,
-        }
-        + if year.0 % 4 == 0 { 1 } else { 0 }
-        + day.0 as u32;
-    second.0 as u32 + minute.0 as u32 * 60 + hour.0 as u32 + days * 86400
 }
 
 /// Access to the Real Time Clock.

@@ -3,7 +3,11 @@
 //! This module contains a wrapper for a byte that is a BCD, as well as logic for converting a BCD
 //! to other types.
 
-use crate::{Day, Error, Hour, Minute, Second, Year};
+use crate::{
+    date_time::{Day, Hour, Minute, Second, Year},
+    Error,
+};
+use deranged::RangedU8;
 use time::Month;
 
 /// Binary coded decimal.
@@ -41,8 +45,8 @@ impl TryFrom<u8> for Bcd {
 /// Interprets the BCD as a year.
 impl From<Bcd> for Year {
     fn from(bcd: Bcd) -> Self {
-        // `Bcd::to_binary()` will always return a value less than 99.
-        Year(bcd.to_binary())
+        // SAFETY: `Bcd::to_binary()` will always return a value less than 99.
+        Year(unsafe { RangedU8::new_unchecked(bcd.to_binary()) })
     }
 }
 
@@ -63,12 +67,9 @@ impl TryFrom<Bcd> for Day {
     type Error = Error;
 
     fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        let day = bcd.to_binary();
-        if day == 0 || day > 31 {
-            Err(Error::InvalidDay)
-        } else {
-            Ok(Self(day))
-        }
+        Ok(Self(
+            RangedU8::new(bcd.to_binary()).ok_or(Error::InvalidDay)?,
+        ))
     }
 }
 
@@ -81,12 +82,9 @@ impl TryFrom<Bcd> for Hour {
         if bcd.0 & 0b1000_0000 != 0 {
             return Err(Error::AmPmBitPresent);
         }
-        let hour = bcd.to_binary();
-        if hour > 23 {
-            Err(Error::InvalidHour)
-        } else {
-            Ok(Self(hour))
-        }
+        Ok(Self(
+            RangedU8::new(bcd.to_binary()).ok_or(Error::InvalidHour)?,
+        ))
     }
 }
 
@@ -95,12 +93,9 @@ impl TryFrom<Bcd> for Minute {
     type Error = Error;
 
     fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        let minute = bcd.to_binary();
-        if minute > 59 {
-            Err(Error::InvalidMinute)
-        } else {
-            Ok(Self(minute))
-        }
+        Ok(Self(
+            RangedU8::new(bcd.to_binary()).ok_or(Error::InvalidMinute)?,
+        ))
     }
 }
 
@@ -113,20 +108,21 @@ impl TryFrom<Bcd> for Second {
         if bcd.0 & 0b1000_0000 != 0 {
             return Err(Error::TestMode);
         }
-        let second = bcd.to_binary();
-        if second > 59 {
-            Err(Error::InvalidSecond)
-        } else {
-            Ok(Self(second))
-        }
+        Ok(Self(
+            RangedU8::new(bcd.to_binary()).ok_or(Error::InvalidSecond)?,
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Bcd;
-    use crate::{Day, Error, Hour, Minute, Second, Year};
+    use crate::{
+        date_time::{Day, Hour, Minute, Second, Year},
+        Error,
+    };
     use claims::{assert_err_eq, assert_ok_eq};
+    use deranged::RangedU8;
     use time::Month;
 
     #[test]
@@ -171,12 +167,12 @@ mod tests {
 
     #[test]
     fn into_year_single_digit() {
-        assert_eq!(Year::from(Bcd(0x08)), Year(8));
+        assert_eq!(Year::from(Bcd(0x08)), Year(RangedU8::new_static::<8>()));
     }
 
     #[test]
     fn into_year_double_digit() {
-        assert_eq!(Year::from(Bcd(0x23)), Year(23));
+        assert_eq!(Year::from(Bcd(0x23)), Year(RangedU8::new_static::<23>()));
     }
 
     #[test]
@@ -201,12 +197,12 @@ mod tests {
 
     #[test]
     fn try_into_day_single_digit() {
-        assert_ok_eq!(Day::try_from(Bcd(0x05)), Day(5));
+        assert_ok_eq!(Day::try_from(Bcd(0x05)), Day(RangedU8::new_static::<5>()));
     }
 
     #[test]
     fn try_into_day_double_digit() {
-        assert_ok_eq!(Day::try_from(Bcd(0x31)), Day(31));
+        assert_ok_eq!(Day::try_from(Bcd(0x31)), Day(RangedU8::new_static::<31>()));
     }
 
     #[test]
@@ -221,12 +217,15 @@ mod tests {
 
     #[test]
     fn try_into_hour_single_digit() {
-        assert_ok_eq!(Hour::try_from(Bcd(0x03)), Hour(3));
+        assert_ok_eq!(Hour::try_from(Bcd(0x03)), Hour(RangedU8::new_static::<3>()));
     }
 
     #[test]
     fn try_into_hour_double_digit() {
-        assert_ok_eq!(Hour::try_from(Bcd(0x19)), Hour(19));
+        assert_ok_eq!(
+            Hour::try_from(Bcd(0x19)),
+            Hour(RangedU8::new_static::<19>())
+        );
     }
 
     #[test]
@@ -241,12 +240,18 @@ mod tests {
 
     #[test]
     fn try_into_minute_single_digit() {
-        assert_ok_eq!(Minute::try_from(Bcd(0x08)), Minute(8));
+        assert_ok_eq!(
+            Minute::try_from(Bcd(0x08)),
+            Minute(RangedU8::new_static::<8>())
+        );
     }
 
     #[test]
     fn try_into_minute_double_digit() {
-        assert_ok_eq!(Minute::try_from(Bcd(0x57)), Minute(57));
+        assert_ok_eq!(
+            Minute::try_from(Bcd(0x57)),
+            Minute(RangedU8::new_static::<57>())
+        );
     }
 
     #[test]
@@ -256,12 +261,18 @@ mod tests {
 
     #[test]
     fn try_into_second_single_digit() {
-        assert_ok_eq!(Second::try_from(Bcd(0x02)), Second(2));
+        assert_ok_eq!(
+            Second::try_from(Bcd(0x02)),
+            Second(RangedU8::new_static::<2>())
+        );
     }
 
     #[test]
     fn try_into_second_double_digit() {
-        assert_ok_eq!(Second::try_from(Bcd(0x44)), Second(44));
+        assert_ok_eq!(
+            Second::try_from(Bcd(0x44)),
+            Second(RangedU8::new_static::<44>())
+        );
     }
 
     #[test]
