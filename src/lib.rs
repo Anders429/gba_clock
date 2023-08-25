@@ -27,6 +27,7 @@ const IME: *mut bool = 0x0400_0208 as *mut bool;
 #[derive(Debug)]
 pub enum Error {
     PowerFailure,
+    TestMode,
     InvalidStatus,
     InvalidYear,
     InvalidMonth,
@@ -45,6 +46,7 @@ pub enum Error {
 /// These commands are defined in the S-3511A specification.
 enum Command {
     Reset = 0x60,
+    WriteStatus = 0x62,
     ReadStatus = 0x63,
     ReadDateTime = 0x65,
 }
@@ -480,6 +482,9 @@ impl TryFrom<u8> for Second {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
+        if value & 0b1000_0000 != 0 {
+            return Err(Error::TestMode);
+        }
         let second = bcd_to_binary(value)?;
         if second > 59 {
             Err(Error::InvalidSecond)
@@ -570,6 +575,35 @@ fn try_read_datetime() -> Result<(Year, Month, Day, Weekday, Hour, Minute, Secon
     ))
 }
 
+fn set_status(status: Status) {
+    // Disable interrupts, storing the previous value.
+    //
+    // This prevents interrupts while reading data from the device. This is necessary because GPIO
+    // reads data one bit at a time.
+    let previous_ime = unsafe { IME.read_volatile() };
+    unsafe { IME.write_volatile(false) };
+
+    // Request status write.
+    unsafe {
+        DATA.write_volatile(Data::SCK);
+        DATA.write_volatile(Data::CS | Data::SCK);
+        RW_MODE.write_volatile(RwMode::Write);
+    }
+    send_command(Command::WriteStatus);
+
+    // Write the status.
+    write_byte(status.0);
+    unsafe {
+        DATA.write_volatile(Data::SCK);
+        DATA.write_volatile(Data::SCK);
+    }
+
+    // Restore the previous interrupt enable value.
+    unsafe {
+        IME.write_volatile(previous_ime);
+    }
+}
+
 /// Calculates the number of seconds since the RTC's origin date.
 fn calculate_rtc_offset(
     year: Year,
@@ -632,12 +666,19 @@ impl Clock {
             ENABLE.write_volatile(1);
         }
 
-        // Check status.
+        // Initialize the RTC itself.
         reset();
-        // let status = try_read_status()?;
-        // if status.contains(&Status::POWER) {
-        //     return Err(Error::PowerFailure);
-        // }
+        // If the power bit is active, we need to reset.
+        let status = try_read_status()?;
+        if status.contains(&Status::POWER) {
+            reset();
+        }
+        // If we are in test mode, we need to reset.
+        if matches!(try_read_datetime(), Err(Error::TestMode)) {
+            reset();
+        }
+        // Set to 24-hour time.
+        set_status(Status::HOUR_24);
 
         let (year, month, day, _, hour, minute, second) = try_read_datetime()?;
         let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
