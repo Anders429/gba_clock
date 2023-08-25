@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::ops::{BitAnd, BitOr};
-use time::{Duration, PrimitiveDateTime};
+use time::{Duration, Month, PrimitiveDateTime};
 
 /// I/O Port Data.
 ///
@@ -234,7 +234,14 @@ fn try_read_status() -> Result<Status, Error> {
     status.try_into()
 }
 
+#[derive(Clone, Copy)]
 struct Bcd(u8);
+
+impl Bcd {
+    fn to_binary(self) -> u8 {
+        10 * (self.0 >> 4 & 0x0f) + (self.0 & 0x0f)
+    }
+}
 
 impl TryFrom<u8> for Bcd {
     type Error = Error;
@@ -245,6 +252,17 @@ impl TryFrom<u8> for Bcd {
         } else {
             Err(Error::InvalidBinaryCodedDecimal)
         }
+    }
+}
+
+impl TryFrom<Bcd> for Month {
+    type Error = Error;
+
+    fn try_from(value: Bcd) -> Result<Self, Self::Error> {
+        value
+            .to_binary()
+            .try_into()
+            .map_err(Error::TimeComponentRange)
     }
 }
 
@@ -288,89 +306,6 @@ impl TryFrom<u8> for Year {
 impl From<Year> for u8 {
     fn from(year: Year) -> Self {
         binary_to_bcd(year.0)
-    }
-}
-
-/// A calendar month.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-enum Month {
-    January = 0x01,
-    February = 0x02,
-    March = 0x03,
-    April = 0x04,
-    May = 0x05,
-    June = 0x06,
-    July = 0x07,
-    August = 0x08,
-    September = 0x09,
-    October = 0x10,
-    November = 0x11,
-    December = 0x12,
-}
-
-impl From<Month> for time::Month {
-    fn from(month: Month) -> Self {
-        match month {
-            Month::January => time::Month::January,
-            Month::February => time::Month::February,
-            Month::March => time::Month::March,
-            Month::April => time::Month::April,
-            Month::May => time::Month::May,
-            Month::June => time::Month::June,
-            Month::July => time::Month::July,
-            Month::August => time::Month::August,
-            Month::September => time::Month::September,
-            Month::October => time::Month::October,
-            Month::November => time::Month::November,
-            Month::December => time::Month::December,
-        }
-    }
-}
-
-impl From<time::Month> for Month {
-    fn from(month: time::Month) -> Self {
-        match month {
-            time::Month::January => Month::January,
-            time::Month::February => Month::February,
-            time::Month::March => Month::March,
-            time::Month::April => Month::April,
-            time::Month::May => Month::May,
-            time::Month::June => Month::June,
-            time::Month::July => Month::July,
-            time::Month::August => Month::August,
-            time::Month::September => Month::September,
-            time::Month::October => Month::October,
-            time::Month::November => Month::November,
-            time::Month::December => Month::December,
-        }
-    }
-}
-
-impl TryFrom<u8> for Month {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0x01 => Ok(Self::January),
-            0x02 => Ok(Self::February),
-            0x03 => Ok(Self::March),
-            0x04 => Ok(Self::April),
-            0x05 => Ok(Self::May),
-            0x06 => Ok(Self::June),
-            0x07 => Ok(Self::July),
-            0x08 => Ok(Self::August),
-            0x09 => Ok(Self::September),
-            0x10 => Ok(Self::October),
-            0x11 => Ok(Self::November),
-            0x12 => Ok(Self::December),
-            _ => Err(Error::InvalidMonth),
-        }
-    }
-}
-
-impl From<Month> for u8 {
-    fn from(month: Month) -> Self {
-        month as _
     }
 }
 
@@ -533,7 +468,7 @@ fn try_read_datetime() -> Result<(Year, Month, Day, Hour, Minute, Second), Error
 
     Ok((
         year.try_into()?,
-        month.try_into()?,
+        Bcd::try_from(month)?.try_into()?,
         day.try_into()?,
         hour.try_into()?,
         minute.try_into()?,
