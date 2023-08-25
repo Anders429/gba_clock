@@ -49,6 +49,7 @@ enum Command {
     WriteStatus = 0x62,
     ReadStatus = 0x63,
     ReadDateTime = 0x65,
+    ReadTime = 0x67,
 }
 
 /// Configurations for I/O port direction.
@@ -233,6 +234,20 @@ fn try_read_status() -> Result<Status, Error> {
     status.try_into()
 }
 
+struct Bcd(u8);
+
+impl TryFrom<u8> for Bcd {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        if value < 0xa0 || (value & 0x0f < 0x0a) {
+            Ok(Self(value))
+        } else {
+            Err(Error::InvalidBinaryCodedDecimal)
+        }
+    }
+}
+
 /// Converts from binary coded decimal to binary.
 ///
 /// The S-3511A stores values as BCD, meaning each half-byte represents a digit. For example, the
@@ -382,54 +397,6 @@ impl From<Day> for u8 {
     }
 }
 
-/// A specific day within a week.
-enum Weekday {
-    Monday = 0x00,
-    Tuesday = 0x01,
-    Wednesday = 0x02,
-    Thursday = 0x03,
-    Friday = 0x04,
-    Saturday = 0x05,
-    Sunday = 0x06,
-}
-
-impl From<time::Weekday> for Weekday {
-    fn from(weekday: time::Weekday) -> Self {
-        match weekday {
-            time::Weekday::Monday => Self::Monday,
-            time::Weekday::Tuesday => Self::Tuesday,
-            time::Weekday::Wednesday => Self::Wednesday,
-            time::Weekday::Thursday => Self::Thursday,
-            time::Weekday::Friday => Self::Friday,
-            time::Weekday::Saturday => Self::Saturday,
-            time::Weekday::Sunday => Self::Sunday,
-        }
-    }
-}
-
-impl TryFrom<u8> for Weekday {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0x00 => Ok(Self::Monday),
-            0x01 => Ok(Self::Tuesday),
-            0x02 => Ok(Self::Wednesday),
-            0x03 => Ok(Self::Thursday),
-            0x04 => Ok(Self::Friday),
-            0x05 => Ok(Self::Saturday),
-            0x06 => Ok(Self::Sunday),
-            _ => Err(Error::InvalidWeekday),
-        }
-    }
-}
-
-impl From<Weekday> for u8 {
-    fn from(weekday: Weekday) -> Self {
-        weekday as _
-    }
-}
-
 /// An hour of the day.
 struct Hour(u8);
 
@@ -527,7 +494,7 @@ fn reset() {
 }
 
 /// Attempt to read the date and time from the RTC.
-fn try_read_datetime() -> Result<(Year, Month, Day, Weekday, Hour, Minute, Second), Error> {
+fn try_read_datetime() -> Result<(Year, Month, Day, Hour, Minute, Second), Error> {
     // Disable interrupts, storing the previous value.
     //
     // This prevents interrupts while reading data from the device. This is necessary because GPIO
@@ -550,7 +517,7 @@ fn try_read_datetime() -> Result<(Year, Month, Day, Weekday, Hour, Minute, Secon
     let year = read_byte();
     let month = read_byte();
     let day = read_byte();
-    let weekday = read_byte();
+    let _weekday = read_byte();
     let hour = read_byte();
     let minute = read_byte();
     let second = read_byte();
@@ -568,11 +535,39 @@ fn try_read_datetime() -> Result<(Year, Month, Day, Weekday, Hour, Minute, Secon
         year.try_into()?,
         month.try_into()?,
         day.try_into()?,
-        weekday.try_into()?,
         hour.try_into()?,
         minute.try_into()?,
         second.try_into()?,
     ))
+}
+
+fn is_test_mode() -> bool {
+    // Disable interrupts, storing the previous value.
+    //
+    // This prevents interrupts while reading data from the device. This is necessary because GPIO
+    // reads data one bit at a time.
+    let previous_ime = unsafe { IME.read_volatile() };
+    unsafe { IME.write_volatile(false) };
+
+    // Request datetime.
+    unsafe {
+        DATA.write_volatile(Data::SCK);
+        DATA.write_volatile(Data::CS | Data::SCK);
+        RW_MODE.write_volatile(RwMode::Write);
+    }
+    send_command(Command::ReadTime);
+
+    let _hour = read_byte();
+    let _minute = read_byte();
+    let second = read_byte();
+
+    // Restore the previous interrupt enable value.
+    unsafe {
+        IME.write_volatile(previous_ime);
+    }
+
+    // Check whether the test flag is set.
+    second & 0b1000_0000 != 0
 }
 
 fn set_status(status: Status) {
@@ -674,13 +669,13 @@ impl Clock {
             reset();
         }
         // If we are in test mode, we need to reset.
-        if matches!(try_read_datetime(), Err(Error::TestMode)) {
+        if is_test_mode() {
             reset();
         }
         // Set to 24-hour time.
         set_status(Status::HOUR_24);
 
-        let (year, month, day, _, hour, minute, second) = try_read_datetime()?;
+        let (year, month, day, hour, minute, second) = try_read_datetime()?;
         let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
 
         Ok(Self {
@@ -691,7 +686,7 @@ impl Clock {
 
     /// Reads the currently stored date and time.
     pub fn read_datetime(&self) -> Result<PrimitiveDateTime, Error> {
-        let (year, month, day, _, hour, minute, second) = try_read_datetime()?;
+        let (year, month, day, hour, minute, second) = try_read_datetime()?;
         let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
         let duration = if rtc_offset >= self.rtc_offset {
             Duration::seconds((rtc_offset - self.rtc_offset).into())
@@ -711,7 +706,7 @@ impl Clock {
     /// Therefore, the date and time are stored as being offset from the current RTC date and time
     /// to maintain maximum compatibility.
     pub fn write_datetime(&mut self, datetime: PrimitiveDateTime) -> Result<(), Error> {
-        let (year, month, day, _, hour, minute, second) = try_read_datetime()?;
+        let (year, month, day, hour, minute, second) = try_read_datetime()?;
         let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
         self.datetime_offset = datetime;
         self.rtc_offset = rtc_offset;
