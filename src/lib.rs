@@ -275,6 +275,8 @@ impl TryFrom<Bcd> for Month {
 }
 
 /// A calendar year.
+///
+/// The contained value must be less than `99`.
 struct Year(u8);
 
 impl From<Bcd> for Year {
@@ -285,6 +287,8 @@ impl From<Bcd> for Year {
 }
 
 /// A day within a month.
+///
+/// The contained value must not be `0` and must be less than `32`.
 struct Day(u8);
 
 impl TryFrom<Bcd> for Day {
@@ -301,6 +305,8 @@ impl TryFrom<Bcd> for Day {
 }
 
 /// An hour of the day.
+///
+/// The contained value must be less than `24`.
 struct Hour(u8);
 
 impl TryFrom<Bcd> for Hour {
@@ -321,6 +327,8 @@ impl TryFrom<Bcd> for Hour {
 }
 
 /// A minute within an hour.
+///
+/// The contained value must be less than `60`.
 struct Minute(u8);
 
 impl TryFrom<Bcd> for Minute {
@@ -337,6 +345,8 @@ impl TryFrom<Bcd> for Minute {
 }
 
 /// A second within a minute.
+///
+/// The contained value must be less than `60`.
 struct Second(u8);
 
 impl TryFrom<Bcd> for Second {
