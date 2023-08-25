@@ -13,7 +13,7 @@ use time::Month;
 ///
 /// The contained value must be a valid BCD value, meaning neither half-byte can be greater than
 /// `0x9`.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Bcd(u8);
 
 impl Bcd {
@@ -30,7 +30,7 @@ impl TryFrom<u8> for Bcd {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value < 0xa0 || (value & 0x0f < 0x0a) {
+        if value < 0xa0 && (value & 0x0f < 0x0a) {
             Ok(Self(value))
         } else {
             Err(Error::InvalidBinaryCodedDecimal)
@@ -54,7 +54,7 @@ impl TryFrom<Bcd> for Month {
         value
             .to_binary()
             .try_into()
-            .map_err(Error::TimeComponentRange)
+            .map_err(|_| Error::InvalidMonth)
     }
 }
 
@@ -119,5 +119,158 @@ impl TryFrom<Bcd> for Second {
         } else {
             Ok(Self(second))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Bcd;
+    use crate::{Day, Error, Hour, Minute, Second, Year};
+    use claims::{assert_err_eq, assert_ok_eq};
+    use time::Month;
+
+    #[test]
+    fn to_binary() {
+        assert_eq!(Bcd(0x12).to_binary(), 12);
+    }
+
+    #[test]
+    fn to_binary_min() {
+        assert_eq!(Bcd(0x00).to_binary(), 0);
+    }
+
+    #[test]
+    fn to_binary_max() {
+        assert_eq!(Bcd(0x99).to_binary(), 99);
+    }
+
+    #[test]
+    fn from_byte() {
+        assert_ok_eq!(Bcd::try_from(0x12), Bcd(0x12));
+    }
+
+    #[test]
+    fn from_byte_min() {
+        assert_ok_eq!(Bcd::try_from(0x00), Bcd(0x00));
+    }
+
+    #[test]
+    fn from_byte_max() {
+        assert_ok_eq!(Bcd::try_from(0x99), Bcd(0x99));
+    }
+
+    #[test]
+    fn from_byte_upper_out_of_bounds() {
+        assert_err_eq!(Bcd::try_from(0xc5), Error::InvalidBinaryCodedDecimal);
+    }
+
+    #[test]
+    fn from_byte_lower_out_of_bounds() {
+        assert_err_eq!(Bcd::try_from(0x5c), Error::InvalidBinaryCodedDecimal);
+    }
+
+    #[test]
+    fn into_year_single_digit() {
+        assert_eq!(Year::from(Bcd(0x08)), Year(8));
+    }
+
+    #[test]
+    fn into_year_double_digit() {
+        assert_eq!(Year::from(Bcd(0x23)), Year(23));
+    }
+
+    #[test]
+    fn try_into_month_single_digit() {
+        assert_ok_eq!(Month::try_from(Bcd(0x07)), Month::July);
+    }
+
+    #[test]
+    fn try_into_month_double_digit() {
+        assert_ok_eq!(Month::try_from(Bcd(0x12)), Month::December);
+    }
+
+    #[test]
+    fn try_into_month_fails_zero() {
+        assert_err_eq!(Month::try_from(Bcd(0x00)), Error::InvalidMonth);
+    }
+
+    #[test]
+    fn try_into_month_fails_too_high() {
+        assert_err_eq!(Month::try_from(Bcd(0x13)), Error::InvalidMonth);
+    }
+
+    #[test]
+    fn try_into_day_single_digit() {
+        assert_ok_eq!(Day::try_from(Bcd(0x05)), Day(5));
+    }
+
+    #[test]
+    fn try_into_day_double_digit() {
+        assert_ok_eq!(Day::try_from(Bcd(0x31)), Day(31));
+    }
+
+    #[test]
+    fn try_into_day_fails_zero() {
+        assert_err_eq!(Day::try_from(Bcd(0x00)), Error::InvalidDay);
+    }
+
+    #[test]
+    fn try_into_day_fails_too_high() {
+        assert_err_eq!(Day::try_from(Bcd(0x32)), Error::InvalidDay);
+    }
+
+    #[test]
+    fn try_into_hour_single_digit() {
+        assert_ok_eq!(Hour::try_from(Bcd(0x03)), Hour(3));
+    }
+
+    #[test]
+    fn try_into_hour_double_digit() {
+        assert_ok_eq!(Hour::try_from(Bcd(0x19)), Hour(19));
+    }
+
+    #[test]
+    fn try_into_hour_fails_too_high() {
+        assert_err_eq!(Hour::try_from(Bcd(0x24)), Error::InvalidHour);
+    }
+
+    #[test]
+    fn try_into_hour_fails_am_pm_bit() {
+        assert_err_eq!(Hour::try_from(Bcd(0x94)), Error::AmPmBitPresent);
+    }
+
+    #[test]
+    fn try_into_minute_single_digit() {
+        assert_ok_eq!(Minute::try_from(Bcd(0x08)), Minute(8));
+    }
+
+    #[test]
+    fn try_into_minute_double_digit() {
+        assert_ok_eq!(Minute::try_from(Bcd(0x57)), Minute(57));
+    }
+
+    #[test]
+    fn try_into_minute_fails_too_high() {
+        assert_err_eq!(Minute::try_from(Bcd(0x60)), Error::InvalidMinute);
+    }
+
+    #[test]
+    fn try_into_second_single_digit() {
+        assert_ok_eq!(Second::try_from(Bcd(0x02)), Second(2));
+    }
+
+    #[test]
+    fn try_into_second_double_digit() {
+        assert_ok_eq!(Second::try_from(Bcd(0x44)), Second(44));
+    }
+
+    #[test]
+    fn try_into_second_fails_too_high() {
+        assert_err_eq!(Second::try_from(Bcd(0x60)), Error::InvalidSecond);
+    }
+
+    #[test]
+    fn try_into_second_fails_test_bit() {
+        assert_err_eq!(Second::try_from(Bcd(0x80)), Error::TestMode);
     }
 }

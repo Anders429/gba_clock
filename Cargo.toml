@@ -5,3 +5,6 @@ edition = "2021"
 
 [dependencies]
 time = {version = "0.3.26", default-features = false}
+
+[dev-dependencies]
+claims = "0.7.1"

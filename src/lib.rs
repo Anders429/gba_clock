@@ -27,18 +27,18 @@ const ENABLE: *mut u16 = 0x080000c8 as *mut u16;
 const IME: *mut bool = 0x0400_0208 as *mut bool;
 
 /// Errors that may occur when interacting with the RTC.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Error {
     PowerFailure,
     TestMode,
     AmPmBitPresent,
     InvalidStatus,
+    InvalidMonth,
     InvalidDay,
     InvalidHour,
     InvalidMinute,
     InvalidSecond,
     InvalidBinaryCodedDecimal,
-    TimeComponentRange(time::error::ComponentRange),
     Overflow,
 }
 
@@ -238,26 +238,31 @@ fn try_read_status() -> Result<Status, Error> {
 /// A calendar year.
 ///
 /// The contained value must be less than `99`.
+#[derive(Debug, Eq, PartialEq)]
 struct Year(u8);
 
 /// A day within a month.
 ///
 /// The contained value must not be `0` and must be less than `32`.
+#[derive(Debug, Eq, PartialEq)]
 struct Day(u8);
 
 /// An hour of the day.
 ///
 /// The contained value must be less than `24`.
+#[derive(Debug, Eq, PartialEq)]
 struct Hour(u8);
 
 /// A minute within an hour.
 ///
 /// The contained value must be less than `60`.
+#[derive(Debug, Eq, PartialEq)]
 struct Minute(u8);
 
 /// A second within a minute.
 ///
 /// The contained value must be less than `60`.
+#[derive(Debug, Eq, PartialEq)]
 struct Second(u8);
 
 fn reset() {
