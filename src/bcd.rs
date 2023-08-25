@@ -24,8 +24,10 @@ impl Bcd {
     /// Converts the binary coded decimal to its equivalent binary form.
     ///
     /// This is guaranteed to result in a value less than `100`.
-    fn to_binary(self) -> u8 {
-        10 * (self.0 >> 4 & 0x0f) + (self.0 & 0x0f)
+    fn to_binary(self) -> RangedU8<0, 99> {
+        // SAFETY: This conversion is guaranteed to result in a value between 0 and 99, since the
+        // original value is guaranteed to be a valid BCD value.
+        unsafe { RangedU8::new_unchecked(10 * (self.0 >> 4 & 0x0f) + (self.0 & 0x0f)) }
     }
 }
 
@@ -45,8 +47,7 @@ impl TryFrom<u8> for Bcd {
 /// Interprets the BCD as a year.
 impl From<Bcd> for Year {
     fn from(bcd: Bcd) -> Self {
-        // SAFETY: `Bcd::to_binary()` will always return a value less than 99.
-        Year(unsafe { RangedU8::new_unchecked(bcd.to_binary()) })
+        Year(bcd.to_binary())
     }
 }
 
@@ -57,6 +58,7 @@ impl TryFrom<Bcd> for Month {
     fn try_from(value: Bcd) -> Result<Self, Self::Error> {
         value
             .to_binary()
+            .get()
             .try_into()
             .map_err(|_| Error::InvalidMonth)
     }
@@ -67,9 +69,7 @@ impl TryFrom<Bcd> for Day {
     type Error = Error;
 
     fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        Ok(Self(
-            RangedU8::new(bcd.to_binary()).ok_or(Error::InvalidDay)?,
-        ))
+        Ok(Self(bcd.to_binary().narrow().ok_or(Error::InvalidDay)?))
     }
 }
 
@@ -82,9 +82,7 @@ impl TryFrom<Bcd> for Hour {
         if bcd.0 & 0b1000_0000 != 0 {
             return Err(Error::AmPmBitPresent);
         }
-        Ok(Self(
-            RangedU8::new(bcd.to_binary()).ok_or(Error::InvalidHour)?,
-        ))
+        Ok(Self(bcd.to_binary().narrow().ok_or(Error::InvalidHour)?))
     }
 }
 
@@ -93,9 +91,7 @@ impl TryFrom<Bcd> for Minute {
     type Error = Error;
 
     fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        Ok(Self(
-            RangedU8::new(bcd.to_binary()).ok_or(Error::InvalidMinute)?,
-        ))
+        Ok(Self(bcd.to_binary().narrow().ok_or(Error::InvalidMinute)?))
     }
 }
 
@@ -108,9 +104,7 @@ impl TryFrom<Bcd> for Second {
         if bcd.0 & 0b1000_0000 != 0 {
             return Err(Error::TestMode);
         }
-        Ok(Self(
-            RangedU8::new(bcd.to_binary()).ok_or(Error::InvalidSecond)?,
-        ))
+        Ok(Self(bcd.to_binary().narrow().ok_or(Error::InvalidSecond)?))
     }
 }
 
@@ -127,17 +121,17 @@ mod tests {
 
     #[test]
     fn to_binary() {
-        assert_eq!(Bcd(0x12).to_binary(), 12);
+        assert_eq!(Bcd(0x12).to_binary(), RangedU8::<0, 99>::new_static::<12>());
     }
 
     #[test]
     fn to_binary_min() {
-        assert_eq!(Bcd(0x00).to_binary(), 0);
+        assert_eq!(Bcd(0x00).to_binary(), RangedU8::<0, 99>::new_static::<0>());
     }
 
     #[test]
     fn to_binary_max() {
-        assert_eq!(Bcd(0x99).to_binary(), 99);
+        assert_eq!(Bcd(0x99).to_binary(), RangedU8::<0, 99>::new_static::<99>());
     }
 
     #[test]
