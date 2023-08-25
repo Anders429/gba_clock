@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::ops::{BitAnd, BitOr};
-use time::{Date, PrimitiveDateTime, Time};
+use time::{Duration, PrimitiveDateTime};
 
 /// I/O Port Data.
 ///
@@ -37,14 +37,15 @@ pub enum Error {
     InvalidSecond,
     InvalidBinaryCodedDecimal,
     TimeComponentRange(time::error::ComponentRange),
+    Overflow,
 }
 
 /// A command used to interact with the RTC.
 ///
 /// These commands are defined in the S-3511A specification.
 enum Command {
+    Reset = 0x60,
     ReadStatus = 0x63,
-    WriteDateTime = 0x64,
     ReadDateTime = 0x65,
 }
 
@@ -494,6 +495,32 @@ impl From<Second> for u8 {
     }
 }
 
+fn reset() {
+    // Disable interrupts, storing the previous value.
+    //
+    // This prevents interrupts while reading data from the device. This is necessary because GPIO
+    // reads data one bit at a time.
+    let previous_ime = unsafe { IME.read_volatile() };
+    unsafe { IME.write_volatile(false) };
+
+    // Request reset.
+    unsafe {
+        DATA.write_volatile(Data::SCK);
+        DATA.write_volatile(Data::CS | Data::SCK);
+        RW_MODE.write_volatile(RwMode::Write);
+    }
+    send_command(Command::Reset);
+    unsafe {
+        DATA.write_volatile(Data::SCK);
+        DATA.write_volatile(Data::SCK);
+    }
+
+    // Restore the previous interrupt enable value.
+    unsafe {
+        IME.write_volatile(previous_ime);
+    }
+}
+
 /// Attempt to read the date and time from the RTC.
 fn try_read_datetime() -> Result<(Year, Month, Day, Weekday, Hour, Minute, Second), Error> {
     // Disable interrupts, storing the previous value.
@@ -543,176 +570,110 @@ fn try_read_datetime() -> Result<(Year, Month, Day, Weekday, Hour, Minute, Secon
     ))
 }
 
-/// Write date and time values to the RTC.
-///
-/// These should be validated before calling this function. However, behavior with invalid values
-/// is defined, and will technically result in a valid state, so this function is not marked as
-/// `unsafe` and does not attempt to validate the data.
-fn write_datetime(
+/// Calculates the number of seconds since the RTC's origin date.
+fn calculate_rtc_offset(
     year: Year,
     month: Month,
     day: Day,
-    weekday: Weekday,
     hour: Hour,
     minute: Minute,
     second: Second,
-) {
-    // Disable interrupts, storing the previous value.
-    //
-    // This prevents interrupts while reading data from the device. This is necessary because GPIO
-    // reads data one bit at a time.
-    let previous_ime = unsafe { IME.read_volatile() };
-    unsafe { IME.write_volatile(false) };
-
-    // Request datetime write.
-    unsafe {
-        DATA.write_volatile(Data::SCK);
-        DATA.write_volatile(Data::CS | Data::SCK);
-        RW_MODE.write_volatile(RwMode::Write);
-    }
-    send_command(Command::WriteDateTime);
-
-    // Send datetime.
-    write_byte(year.into());
-    write_byte(month.into());
-    write_byte(day.into());
-    write_byte(weekday.into());
-    write_byte(hour.into());
-    write_byte(minute.into());
-    write_byte(second.into());
-    unsafe {
-        DATA.write_volatile(Data::SCK);
-        DATA.write_volatile(Data::SCK);
-    }
-
-    // Restore the previous interrupt enable value.
-    unsafe {
-        IME.write_volatile(previous_ime);
-    }
+) -> u32 {
+    let days = year.0 as u32 * 365
+        + (year.0 as u32 - 1) / 4
+        + 1
+        + match month {
+            Month::January => 0,
+            Month::February => 31,
+            Month::March => 59,
+            Month::April => 90,
+            Month::May => 120,
+            Month::June => 151,
+            Month::July => 181,
+            Month::August => 212,
+            Month::September => 243,
+            Month::October => 273,
+            Month::November => 304,
+            Month::December => 334,
+        }
+        + if year.0 % 4 == 0 { 1 } else { 0 }
+        + day.0 as u32;
+    second.0 as u32 + minute.0 as u32 * 60 + hour.0 as u32 + days * 86400
 }
 
 /// Access to the Real Time Clock.
 ///
 /// Instantiating a `Clock` initializes the relevant registers for interacting with the RTC,
-/// allowing subsequent reads and writes on the RTC's stored date and time. Dates and times are
-/// represented using types from the [`time`] crate.
-///
-/// This struct stores some state to represent the current century. As such, reads using a `Clock`
-/// are not limited to the years 2000-2099; instead, any year that can be represented by the `time`
-/// crate can be stored here.
+/// allowing subsequent reads of the RTC's stored date and time. Dates and times are represented
+/// using types from the [`time`] crate.
 #[derive(Debug)]
 pub struct Clock {
-    /// The current century.
+    /// The base date and time.
     ///
-    /// The GBA RTC does not actually store the current century, instead storing the year as a
-    /// value between 0 and 99. Storing the century allows years outside of the range 2000-2099 to
-    /// be represented.
-    century: i8,
-    /// The previously-read year.
+    /// The date and time are read by calculating the amount of time that has elapsed from this value.
+    datetime_offset: PrimitiveDateTime,
+    /// The RTC's time, in seconds, corresponding to the stored `datetime_offset`.
     ///
-    /// This is used to detect if the RTC has wrapped back around to the year 0, which indicates
-    /// that the century should be incremented.
-    prev_year: Year,
-    /// The previuosly-read month.
-    ///
-    /// This is used, together with `prev_year`, to detect incorrect leap days. Because the S-3511A
-    /// was designed to only store years between 2000-2099, it will always count a leap day in the
-    /// first year. Therefore, the date must be corrected when this leap day is encountered when
-    /// the century is not divisble by 4 (for example, the year 1900 is not a leap year).
-    prev_month: Month,
+    /// When calculating the current date and time, the current RTC value is offset by this value,
+    /// and the difference is added to the stored `datetime_offset`.
+    rtc_offset: u32,
 }
 
 impl Clock {
-    /// Creates a new `Clock`.
+    /// Creates a new `Clock` set at the given `datetime`.
     ///
-    /// Reading from a newly-instantiated `Clock` before writing will return whatever date and time
-    /// is currently stored in the RTC, interpreting the year as being in the 21st century (i.e.
-    /// being in the range 2000-2099).
-    pub fn new() -> Result<Self, Error> {
+    /// Note that this does not actually change the stored date and time in the RTC itself. While
+    /// RTC values are writable on real hardware, they are often not writable in GBA emulators.
+    /// Therefore, the date and time are stored as being offset from the current RTC date and time
+    /// to maintain maximum compatibility.
+    pub fn new(datetime: PrimitiveDateTime) -> Result<Self, Error> {
         // Enable operations with the RTC via General Purpose I/O (GPIO).
         unsafe {
             ENABLE.write_volatile(1);
         }
 
         // Check status.
-        let status = try_read_status()?;
-        if status.contains(&Status::POWER) {
-            return Err(Error::PowerFailure);
-        }
+        reset();
+        // let status = try_read_status()?;
+        // if status.contains(&Status::POWER) {
+        //     return Err(Error::PowerFailure);
+        // }
+
+        let (year, month, day, _, hour, minute, second) = try_read_datetime()?;
+        let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
 
         Ok(Self {
-            century: 20,
-            prev_year: Year(0),
-            prev_month: Month::January,
+            datetime_offset: datetime,
+            rtc_offset,
         })
     }
 
-    /// Read the currently stored date and time.
-    pub fn read_datetime(&mut self) -> Result<PrimitiveDateTime, Error> {
-        let (mut year, mut month, mut day, weekday, mut hour, mut minute, mut second) =
-            try_read_datetime()?;
+    /// Reads the currently stored date and time.
+    pub fn read_datetime(&self) -> Result<PrimitiveDateTime, Error> {
+        let (year, month, day, _, hour, minute, second) = try_read_datetime()?;
+        let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
+        let duration = if rtc_offset >= self.rtc_offset {
+            Duration::seconds((rtc_offset - self.rtc_offset).into())
+        } else {
+            Duration::seconds((3_155_760_000 - self.rtc_offset + rtc_offset).into())
+        };
 
-        // Check whether we have entered a new century.
-        if self.prev_year > year {
-            if self.century == 99 {
-                self.century = -99;
-            } else {
-                self.century += 1;
-            }
-        }
-
-        // Check whether we need to adjust for the clock's built-in turn-of-the-century leap year.
-        if (self.prev_year > year
-            || (self.prev_year == Year(0) && self.prev_month <= Month::February))
-            && (year > Year(0)
-                || month > Month::February
-                || (month == Month::February && day > Day(28)))
-            && self.century % 4 != 0
-        {
-            // Adjust for leap year.
-            // Note that the S-3511A will do end-of-month correction. This means that if we pass in
-            // a day such as February 30, it will be corrected to March 1.
-            write_datetime(year, month, Day(day.0 + 1), weekday, hour, minute, second);
-            // Read the time again. This is easier than trying to recalculate the correct month and
-            // year when the day has been changed.
-            (year, month, day, _, hour, minute, second) = try_read_datetime()?;
-        }
-
-        let date = Date::from_calendar_date(
-            self.century as i32 * 100 + year.0 as i32,
-            month.into(),
-            day.0,
-        )
-        .map_err(Error::TimeComponentRange)?;
-
-        let time = Time::from_hms(hour.0, minute.0, second.0).map_err(Error::TimeComponentRange)?;
-
-        self.prev_year = year;
-        self.prev_month = month;
-
-        Ok(PrimitiveDateTime::new(date, time))
+        self.datetime_offset
+            .checked_add(duration)
+            .ok_or(Error::Overflow)
     }
 
-    /// Write a new date and time to the RTC.
-    pub fn write_datetime(&mut self, datetime: PrimitiveDateTime) {
-        let date = datetime.date();
-        let century = date.year() / 100;
-        let year = Year(date.year().rem_euclid(100) as u8);
-        let month = date.month().into();
-        let day = Day(date.day());
-        let weekday = date.weekday().into();
-
-        let time = datetime.time();
-        let hour = Hour(time.hour());
-        let minute = Minute(time.minute());
-        let second = Second(time.second());
-
-        write_datetime(year, month, day, weekday, hour, minute, second);
-
-        // TODO: Should ensure that this doesn't fail, if, for example, `time`'s `large-dates`
-        // feature is enabled.
-        self.century = century as i8;
-        self.prev_year = year;
-        self.prev_month = month;
+    /// Writes a new date and time.
+    ///
+    /// Note that this does not actually change the stored date and time in the RTC itself. While
+    /// RTC values are writable on real hardware, they are often not writable in GBA emulators.
+    /// Therefore, the date and time are stored as being offset from the current RTC date and time
+    /// to maintain maximum compatibility.
+    pub fn write_datetime(&mut self, datetime: PrimitiveDateTime) -> Result<(), Error> {
+        let (year, month, day, _, hour, minute, second) = try_read_datetime()?;
+        let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
+        self.datetime_offset = datetime;
+        self.rtc_offset = rtc_offset;
+        Ok(())
     }
 }
