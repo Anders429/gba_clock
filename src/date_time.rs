@@ -36,8 +36,11 @@ pub(crate) fn calculate_rtc_offset(
     second: Second,
 ) -> u32 {
     let days = year.0.get() as u32 * 365
-        + (year.0.get() as u32 - 1) / 4
-        + 1
+        + if year.0.get() > 0 {
+            (year.0.get() as u32 - 1) / 4 + 1
+        } else {
+            0
+        }
         + match month {
             Month::January => 0,
             Month::February => 31,
@@ -52,7 +55,139 @@ pub(crate) fn calculate_rtc_offset(
             Month::November => 304,
             Month::December => 334,
         }
-        + if year.0.get() % 4 == 0 { 1 } else { 0 }
-        + day.0.get() as u32;
-    second.0.get() as u32 + minute.0.get() as u32 * 60 + hour.0.get() as u32 + days * 86400
+        + if year.0.get() % 4 == 0 && u8::from(month) > 2 {
+            1
+        } else {
+            0
+        }
+        + day.0.get() as u32
+        - 1;
+    second.0.get() as u32 + minute.0.get() as u32 * 60 + hour.0.get() as u32 * 3600 + days * 86400
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{calculate_rtc_offset, Day, Hour, Minute, Second, Year};
+    use deranged::RangedU8;
+    use time::Month;
+
+    #[test]
+    fn calculate_rtc_offset_min() {
+        assert_eq!(
+            calculate_rtc_offset(
+                Year(RangedU8::new_static::<0>()),
+                Month::January,
+                Day(RangedU8::new_static::<1>()),
+                Hour(RangedU8::new_static::<0>()),
+                Minute(RangedU8::new_static::<0>()),
+                Second(RangedU8::new_static::<0>())
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn calculate_rtc_offset_max() {
+        assert_eq!(
+            calculate_rtc_offset(
+                Year(RangedU8::new_static::<99>()),
+                Month::December,
+                Day(RangedU8::new_static::<31>()),
+                Hour(RangedU8::new_static::<23>()),
+                Minute(RangedU8::new_static::<59>()),
+                Second(RangedU8::new_static::<59>())
+            ),
+            3_155_759_999
+        );
+    }
+
+    #[test]
+    fn calculate_rtc_offset_seconds() {
+        assert_eq!(
+            calculate_rtc_offset(
+                Year(RangedU8::new_static::<0>()),
+                Month::January,
+                Day(RangedU8::new_static::<1>()),
+                Hour(RangedU8::new_static::<0>()),
+                Minute(RangedU8::new_static::<0>()),
+                Second(RangedU8::new_static::<42>())
+            ),
+            42
+        );
+    }
+
+    #[test]
+    fn calculate_rtc_offset_minutes() {
+        assert_eq!(
+            calculate_rtc_offset(
+                Year(RangedU8::new_static::<0>()),
+                Month::January,
+                Day(RangedU8::new_static::<1>()),
+                Hour(RangedU8::new_static::<0>()),
+                Minute(RangedU8::new_static::<42>()),
+                Second(RangedU8::new_static::<0>())
+            ),
+            2_520
+        );
+    }
+
+    #[test]
+    fn calculate_rtc_offset_hours() {
+        assert_eq!(
+            calculate_rtc_offset(
+                Year(RangedU8::new_static::<0>()),
+                Month::January,
+                Day(RangedU8::new_static::<1>()),
+                Hour(RangedU8::new_static::<18>()),
+                Minute(RangedU8::new_static::<0>()),
+                Second(RangedU8::new_static::<0>())
+            ),
+            64_800
+        );
+    }
+
+    #[test]
+    fn calculate_rtc_offset_days() {
+        assert_eq!(
+            calculate_rtc_offset(
+                Year(RangedU8::new_static::<0>()),
+                Month::January,
+                Day(RangedU8::new_static::<27>()),
+                Hour(RangedU8::new_static::<0>()),
+                Minute(RangedU8::new_static::<0>()),
+                Second(RangedU8::new_static::<0>())
+            ),
+            2_246_400
+        );
+    }
+
+    #[test]
+    fn calculate_rtc_offset_months() {
+        assert_eq!(
+            calculate_rtc_offset(
+                Year(RangedU8::new_static::<0>()),
+                Month::October,
+                Day(RangedU8::new_static::<1>()),
+                Hour(RangedU8::new_static::<0>()),
+                Minute(RangedU8::new_static::<0>()),
+                Second(RangedU8::new_static::<0>())
+            ),
+            23_673_600
+        );
+    }
+
+    #[test]
+    fn calculate_rtc_offset_years() {
+        assert_eq!(
+            calculate_rtc_offset(
+                Year(RangedU8::new_static::<42>()),
+                Month::January,
+                Day(RangedU8::new_static::<1>()),
+                Hour(RangedU8::new_static::<0>()),
+                Minute(RangedU8::new_static::<0>()),
+                Second(RangedU8::new_static::<0>())
+            ),
+            1_325_462_400
+        );
+    }
 }
