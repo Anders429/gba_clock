@@ -279,13 +279,6 @@ fn bcd_to_binary(bcd: u8) -> Result<u8, Error> {
     }
 }
 
-/// Converts from binary to binary coded decimal.
-///
-/// For example, this converts `0x0c` (the value `12`) to `0x12`.
-fn binary_to_bcd(binary: u8) -> u8 {
-    ((binary / 10) << 4) + (binary % 10)
-}
-
 /// A calendar year.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
 struct Year(u8);
@@ -300,12 +293,6 @@ impl TryFrom<u8> for Year {
         } else {
             Ok(Self(year))
         }
-    }
-}
-
-impl From<Year> for u8 {
-    fn from(year: Year) -> Self {
-        binary_to_bcd(year.0)
     }
 }
 
@@ -326,12 +313,6 @@ impl TryFrom<u8> for Day {
     }
 }
 
-impl From<Day> for u8 {
-    fn from(day: Day) -> Self {
-        binary_to_bcd(day.0)
-    }
-}
-
 /// An hour of the day.
 struct Hour(u8);
 
@@ -346,12 +327,6 @@ impl TryFrom<u8> for Hour {
         } else {
             Ok(Self(hour))
         }
-    }
-}
-
-impl From<Hour> for u8 {
-    fn from(hour: Hour) -> Self {
-        binary_to_bcd(hour.0)
     }
 }
 
@@ -371,12 +346,6 @@ impl TryFrom<u8> for Minute {
     }
 }
 
-impl From<Minute> for u8 {
-    fn from(minute: Minute) -> Self {
-        binary_to_bcd(minute.0)
-    }
-}
-
 /// A second within a minute.
 struct Second(u8);
 
@@ -393,12 +362,6 @@ impl TryFrom<u8> for Second {
         } else {
             Ok(Self(second))
         }
-    }
-}
-
-impl From<Second> for u8 {
-    fn from(second: Second) -> Self {
-        binary_to_bcd(second.0)
     }
 }
 
