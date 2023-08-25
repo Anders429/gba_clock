@@ -1,5 +1,8 @@
 #![no_std]
 
+mod bcd;
+
+use bcd::Bcd;
 use core::ops::{BitAnd, BitOr};
 use time::{Duration, Month, PrimitiveDateTime};
 
@@ -232,139 +235,30 @@ fn try_read_status() -> Result<Status, Error> {
     status.try_into()
 }
 
-/// Binary coded decimal.
-///
-/// The S-3511A stores values as BCD, meaning each half-byte represents a digit. For example, the
-/// value `12` is not represented as `0x0c`, but is instead represented as `0x12`.
-///
-/// The contained value must be a valid BCD value, meaning neither half-byte can be greater than
-/// `0x9`.
-#[derive(Clone, Copy)]
-struct Bcd(u8);
-
-impl Bcd {
-    /// Converts the binary coded decimal to its equivalent binary form.
-    ///
-    /// This is guaranteed to result in a value less than `100`.
-    fn to_binary(self) -> u8 {
-        10 * (self.0 >> 4 & 0x0f) + (self.0 & 0x0f)
-    }
-}
-
-impl TryFrom<u8> for Bcd {
-    type Error = Error;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value < 0xa0 || (value & 0x0f < 0x0a) {
-            Ok(Self(value))
-        } else {
-            Err(Error::InvalidBinaryCodedDecimal)
-        }
-    }
-}
-
-impl TryFrom<Bcd> for Month {
-    type Error = Error;
-
-    fn try_from(value: Bcd) -> Result<Self, Self::Error> {
-        value
-            .to_binary()
-            .try_into()
-            .map_err(Error::TimeComponentRange)
-    }
-}
-
 /// A calendar year.
 ///
 /// The contained value must be less than `99`.
 struct Year(u8);
-
-impl From<Bcd> for Year {
-    fn from(bcd: Bcd) -> Self {
-        // `Bcd::to_binary()` will always return a value less than 99.
-        Year(bcd.to_binary())
-    }
-}
 
 /// A day within a month.
 ///
 /// The contained value must not be `0` and must be less than `32`.
 struct Day(u8);
 
-impl TryFrom<Bcd> for Day {
-    type Error = Error;
-
-    fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        let day = bcd.to_binary();
-        if day == 0 || day > 31 {
-            Err(Error::InvalidDay)
-        } else {
-            Ok(Self(day))
-        }
-    }
-}
-
 /// An hour of the day.
 ///
 /// The contained value must be less than `24`.
 struct Hour(u8);
-
-impl TryFrom<Bcd> for Hour {
-    type Error = Error;
-
-    fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        // Check for the am/pm bit.
-        if bcd.0 & 0b1000_0000 != 0 {
-            return Err(Error::AmPmBitPresent);
-        }
-        let hour = bcd.to_binary();
-        if hour > 23 {
-            Err(Error::InvalidHour)
-        } else {
-            Ok(Self(hour))
-        }
-    }
-}
 
 /// A minute within an hour.
 ///
 /// The contained value must be less than `60`.
 struct Minute(u8);
 
-impl TryFrom<Bcd> for Minute {
-    type Error = Error;
-
-    fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        let minute = bcd.to_binary();
-        if minute > 59 {
-            Err(Error::InvalidMinute)
-        } else {
-            Ok(Self(minute))
-        }
-    }
-}
-
 /// A second within a minute.
 ///
 /// The contained value must be less than `60`.
 struct Second(u8);
-
-impl TryFrom<Bcd> for Second {
-    type Error = Error;
-
-    fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        // Check for test bit.
-        if bcd.0 & 0b1000_0000 != 0 {
-            return Err(Error::TestMode);
-        }
-        let second = bcd.to_binary();
-        if second > 59 {
-            Err(Error::InvalidSecond)
-        } else {
-            Ok(Self(second))
-        }
-    }
-}
 
 fn reset() {
     // Disable interrupts, storing the previous value.
