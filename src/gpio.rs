@@ -148,7 +148,7 @@ fn read_byte() -> u8 {
 fn write_byte(byte: u8) {
     for i in 0..8 {
         unsafe {
-            let bit = (byte << i) & 1;
+            let bit = (byte >> i << 1) & 2;
             DATA.write_volatile(bit | Data::CS);
             DATA.write_volatile(bit | Data::CS);
             DATA.write_volatile(bit | Data::CS);
@@ -162,6 +162,7 @@ fn write_byte(byte: u8) {
 /// This is an 8-bit representation of the various modes and states stored in the RTC itself. All
 /// bits except `POWER` are writable. Bits 0, 2, and 4 are unused and therefore should never be
 /// set.
+#[derive(Debug)]
 pub(crate) struct Status(u8);
 
 impl Status {

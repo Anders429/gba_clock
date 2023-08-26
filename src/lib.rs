@@ -4,9 +4,10 @@ mod bcd;
 mod date_time;
 mod gpio;
 
-use date_time::calculate_rtc_offset;
+use date_time::RtcOffset;
+use deranged::RangedU32;
 use gpio::{enable, is_test_mode, reset, set_status, try_read_datetime, try_read_status, Status};
-use time::{Duration, PrimitiveDateTime};
+use time::{Date, PrimitiveDateTime};
 
 /// Errors that may occur when interacting with the RTC.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -31,15 +32,17 @@ pub enum Error {
 /// using types from the [`time`] crate.
 #[derive(Debug)]
 pub struct Clock {
-    /// The base date and time.
+    /// The base date from which dates and times are calculated.
     ///
-    /// The date and time are read by calculating the amount of time that has elapsed from this value.
-    datetime_offset: PrimitiveDateTime,
-    /// The RTC's time, in seconds, corresponding to the stored `datetime_offset`.
+    /// Dates and times are read by calculating the amount of time that has elapsed from midnight
+    /// on this date, using the RTC's value and the stored `rtc_offset`.
+    base_date: Date,
+
+    /// The amount of time elapsed on the RTC at which point the `base_date` was set.
     ///
-    /// When calculating the current date and time, the current RTC value is offset by this value,
-    /// and the difference is added to the stored `datetime_offset`.
-    rtc_offset: u32,
+    /// This is used to calculate the current date and time by calculating how much time has
+    /// elapsed on the RTC past this offset and adding this value to the `base_date`.
+    rtc_offset: RtcOffset,
 }
 
 impl Clock {
@@ -68,25 +71,33 @@ impl Clock {
         set_status(Status::HOUR_24);
 
         let (year, month, day, hour, minute, second) = try_read_datetime()?;
-        let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
+        let rtc_offset = RtcOffset::new(year, month, day, hour, minute, second);
 
         Ok(Self {
-            datetime_offset: datetime,
-            rtc_offset,
+            base_date: datetime.date(),
+            rtc_offset: rtc_offset - datetime.time().into(),
         })
     }
 
     /// Reads the currently stored date and time.
     pub fn read_datetime(&self) -> Result<PrimitiveDateTime, Error> {
         let (year, month, day, hour, minute, second) = try_read_datetime()?;
-        let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
-        let duration = if rtc_offset >= self.rtc_offset {
-            Duration::seconds((rtc_offset - self.rtc_offset).into())
+        let rtc_offset = RtcOffset::new(year, month, day, hour, minute, second);
+
+        let duration = if rtc_offset.0 >= self.rtc_offset.0 {
+            RtcOffset(unsafe { rtc_offset.0.unchecked_sub(self.rtc_offset.0.get()) }).into()
         } else {
-            Duration::seconds((3_155_760_000 - self.rtc_offset + rtc_offset).into())
+            RtcOffset(unsafe {
+                RangedU32::MAX
+                    .unchecked_sub(self.rtc_offset.0.get())
+                    .unchecked_add(rtc_offset.0.get())
+                    .unchecked_add(1)
+            })
+            .into()
         };
 
-        self.datetime_offset
+        self.base_date
+            .midnight()
             .checked_add(duration)
             .ok_or(Error::Overflow)
     }
@@ -99,9 +110,9 @@ impl Clock {
     /// to maintain maximum compatibility.
     pub fn write_datetime(&mut self, datetime: PrimitiveDateTime) -> Result<(), Error> {
         let (year, month, day, hour, minute, second) = try_read_datetime()?;
-        let rtc_offset = calculate_rtc_offset(year, month, day, hour, minute, second);
-        self.datetime_offset = datetime;
-        self.rtc_offset = rtc_offset;
+        let rtc_offset = RtcOffset::new(year, month, day, hour, minute, second);
+        self.base_date = datetime.date();
+        self.rtc_offset = rtc_offset - datetime.time().into();
         Ok(())
     }
 }

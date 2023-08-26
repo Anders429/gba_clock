@@ -1,7 +1,8 @@
 //! Types and logic for representing and understanding the date and time stored within the RTC.
 
-use deranged::RangedU8;
-use time::Month;
+use core::{fmt, fmt::Debug, ops::Sub};
+use deranged::{RangedU32, RangedU8};
+use time::{Date, Duration, Month, Time};
 
 /// A calendar year.
 ///
@@ -25,6 +26,77 @@ pub(crate) struct Minute(pub(crate) RangedU8<0, 59>);
 /// A second within a minute.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Second(pub(crate) RangedU8<0, 59>);
+
+#[derive(Clone, Copy)]
+pub(crate) struct RtcOffset(pub(crate) RangedU32<0, 3_155_759_999>);
+
+impl RtcOffset {
+    pub(crate) fn new(
+        year: Year,
+        month: Month,
+        day: Day,
+        hour: Hour,
+        minute: Minute,
+        second: Second,
+    ) -> RtcOffset {
+        // SAFETY: The output of `calculate_rtc_offset()` is guaranteed to be within the range.
+        RtcOffset(unsafe {
+            RangedU32::new_unchecked(calculate_rtc_offset(year, month, day, hour, minute, second))
+        })
+    }
+}
+
+impl From<Time> for RtcOffset {
+    fn from(time: Time) -> Self {
+        Self(unsafe {
+            RangedU32::new_unchecked(
+                time.hour() as u32 * 3600 + time.minute() as u32 * 60 + time.second() as u32,
+            )
+        })
+    }
+}
+
+impl From<RtcOffset> for Duration {
+    fn from(rtc_offset: RtcOffset) -> Self {
+        Self::seconds(rtc_offset.0.get().into())
+    }
+}
+
+impl Sub for RtcOffset {
+    type Output = RtcOffset;
+
+    fn sub(self, other: Self) -> Self::Output {
+        Self(self.0.checked_sub(other.0.get()).unwrap_or_else(|| {
+            // SAFETY: Since the previous `checked_sub` failed, `other` must be greater than
+            // `self`. Additionally, both the difference of both values must be less than or equal
+            // to the maximum value for the `RangedU32` and must also be greater than 0.
+            unsafe {
+                RangedU32::<0, 3_155_759_999>::MAX
+                    .unchecked_sub(other.0.unchecked_sub(self.0.get()).get())
+                    .unchecked_add(1)
+            }
+        }))
+    }
+}
+
+impl Debug for RtcOffset {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let origin =
+            unsafe { Date::from_calendar_date(2000, Month::January, 1).unwrap_unchecked() }
+                .midnight();
+        let datetime = origin + Duration::seconds(self.0.get().into());
+
+        formatter
+            .debug_struct("RtcOffset")
+            .field("year", &datetime.year())
+            .field("month", &datetime.month())
+            .field("day", &datetime.day())
+            .field("hours", &datetime.hour())
+            .field("minutes", &datetime.minute())
+            .field("seconds", &datetime.second())
+            .finish()
+    }
+}
 
 /// Calculates the number of seconds since the RTC's origin date.
 pub(crate) fn calculate_rtc_offset(
