@@ -2,10 +2,19 @@
 
 use crate::{
     bcd::Bcd,
-    date_time::{Day, Hour, Minute, Second, Year},
+    date_time::{
+        Day,
+        Hour,
+        Minute,
+        Second,
+        Year,
+    },
     Error,
 };
-use core::ops::{BitAnd, BitOr};
+use core::ops::{
+    BitAnd,
+    BitOr,
+};
 use time::Month;
 
 /// I/O Port Data.

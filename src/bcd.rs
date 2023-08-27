@@ -4,7 +4,13 @@
 //! to other types.
 
 use crate::{
-    date_time::{Day, Hour, Minute, Second, Year},
+    date_time::{
+        Day,
+        Hour,
+        Minute,
+        Second,
+        Year,
+    },
     Error,
 };
 use deranged::RangedU8;
@@ -112,10 +118,19 @@ impl TryFrom<Bcd> for Second {
 mod tests {
     use super::Bcd;
     use crate::{
-        date_time::{Day, Hour, Minute, Second, Year},
+        date_time::{
+            Day,
+            Hour,
+            Minute,
+            Second,
+            Year,
+        },
         Error,
     };
-    use claims::{assert_err_eq, assert_ok_eq};
+    use claims::{
+        assert_err_eq,
+        assert_ok_eq,
+    };
     use deranged::RangedU8;
     use time::Month;
 

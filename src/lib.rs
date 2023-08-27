@@ -1,3 +1,32 @@
+//! A real-time clock library for the GBA.
+//!
+//! Provides access to the RTC for programs running on a Game Boy Advance, returning dates and
+//! times that are interoperable with the [`time`](https://crates.io/crates/time) library.
+//!
+//! #Example
+//! Access to the RTC is done through the [`Clock`](https://docs.rs/gba_clock/latest/gba_clock/struct.Clock.html) type. Create a `Clock` using the current time and use the returned instance to access the current time.
+//!
+//! ``` no_run
+//! use gba_clock::Clock;
+//! use time::{
+//!     Date,
+//!     Month,
+//!     PrimitiveDateTime,
+//!     Time,
+//! };
+//!
+//! let current_time = PrimitiveDateTime::new(
+//!     Date::from_calendar_date(2001, Month::March, 21).expect("invalid date"),
+//!     Time::from_hms(11, 30, 0).expect("invalid time"),
+//! );
+//! let clock = Clock::new(current_time).expect("could not communicate with the RTC");
+//!
+//! // Read the current time whenever you need.
+//! let time = clock
+//!     .read_datetime()
+//!     .expect("could not read the current time");
+//! ```
+
 #![no_std]
 
 mod bcd;
@@ -5,20 +34,44 @@ mod date_time;
 mod gpio;
 
 #[cfg(feature = "serde")]
-use core::{fmt, str};
+use core::{
+    fmt,
+    str,
+};
 use date_time::RtcOffset;
 use deranged::RangedU32;
-use gpio::{enable, is_test_mode, reset, set_status, try_read_datetime, try_read_status, Status};
+use gpio::{
+    enable,
+    is_test_mode,
+    reset,
+    set_status,
+    try_read_datetime,
+    try_read_status,
+    Status,
+};
 #[cfg(feature = "serde")]
 use serde::{
     de,
     de::{
-        Deserialize, Deserializer, EnumAccess, MapAccess, SeqAccess, Unexpected, VariantAccess,
+        Deserialize,
+        Deserializer,
+        EnumAccess,
+        MapAccess,
+        SeqAccess,
+        Unexpected,
+        VariantAccess,
         Visitor,
     },
-    ser::{Serialize, SerializeStruct, Serializer},
+    ser::{
+        Serialize,
+        SerializeStruct,
+        Serializer,
+    },
 };
-use time::{Date, PrimitiveDateTime};
+use time::{
+    Date,
+    PrimitiveDateTime,
+};
 
 /// Errors that may occur when interacting with the RTC.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

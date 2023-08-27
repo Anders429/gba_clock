@@ -1,13 +1,32 @@
 //! Types and logic for representing and understanding the date and time stored within the RTC.
 
-use core::{fmt, fmt::Debug, ops::Sub};
-use deranged::{RangedU32, RangedU8};
+use core::{
+    fmt,
+    fmt::Debug,
+    ops::Sub,
+};
+use deranged::{
+    RangedU32,
+    RangedU8,
+};
 #[cfg(feature = "serde")]
 use serde::{
-    de::{Deserialize, Deserializer, Visitor},
-    ser::{Serialize, Serializer},
+    de::{
+        Deserialize,
+        Deserializer,
+        Visitor,
+    },
+    ser::{
+        Serialize,
+        Serializer,
+    },
 };
-use time::{Date, Duration, Month, Time};
+use time::{
+    Date,
+    Duration,
+    Month,
+    Time,
+};
 
 /// A calendar year.
 ///
@@ -181,7 +200,14 @@ pub(crate) fn calculate_rtc_offset(
 
 #[cfg(test)]
 mod tests {
-    use super::{calculate_rtc_offset, Day, Hour, Minute, Second, Year};
+    use super::{
+        calculate_rtc_offset,
+        Day,
+        Hour,
+        Minute,
+        Second,
+        Year,
+    };
     use deranged::RangedU8;
     use time::Month;
 
