@@ -3,7 +3,7 @@
 //! Provides access to the RTC for programs running on a Game Boy Advance, returning dates and
 //! times that are interoperable with the [`time`](https://crates.io/crates/time) library.
 //!
-//! #Example
+//! # Example
 //! Access to the RTC is done through the [`Clock`](https://docs.rs/gba_clock/latest/gba_clock/struct.Clock.html) type. Create a `Clock` using the current time and use the returned instance to access the current time.
 //!
 //! ``` no_run

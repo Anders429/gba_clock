@@ -1,4 +1,4 @@
-#gba_clock
+# gba_clock
 
 [![crates.io](https://img.shields.io/crates/v/gba_clock)](https://crates.io/crates/gba_clock)
 [![docs.rs](https://docs.rs/gba_clock/badge.svg)](https://docs.rs/gba_clock)
