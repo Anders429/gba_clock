@@ -2,6 +2,11 @@
 
 use core::{fmt, fmt::Debug, ops::Sub};
 use deranged::{RangedU32, RangedU8};
+#[cfg(feature = "serde")]
+use serde::{
+    de::{Deserialize, Deserializer, Visitor},
+    ser::{Serialize, Serializer},
+};
 use time::{Date, Duration, Month, Time};
 
 /// A calendar year.
@@ -95,6 +100,43 @@ impl Debug for RtcOffset {
             .field("minutes", &datetime.minute())
             .field("seconds", &datetime.second())
             .finish()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for RtcOffset {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_newtype_struct("RtcOffset", &self.0)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for RtcOffset {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct RtcOffsetVisitor;
+
+        impl<'de> Visitor<'de> for RtcOffsetVisitor {
+            type Value = RtcOffset;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct RtcOffset")
+            }
+
+            fn visit_newtype_struct<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                Ok(RtcOffset(RangedU32::deserialize(deserializer)?))
+            }
+        }
+
+        deserializer.deserialize_newtype_struct("RtcOffset", RtcOffsetVisitor)
     }
 }
 

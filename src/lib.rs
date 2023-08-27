@@ -4,9 +4,20 @@ mod bcd;
 mod date_time;
 mod gpio;
 
+#[cfg(feature = "serde")]
+use core::{fmt, str};
 use date_time::RtcOffset;
 use deranged::RangedU32;
 use gpio::{enable, is_test_mode, reset, set_status, try_read_datetime, try_read_status, Status};
+#[cfg(feature = "serde")]
+use serde::{
+    de,
+    de::{
+        Deserialize, Deserializer, EnumAccess, MapAccess, SeqAccess, Unexpected, VariantAccess,
+        Visitor,
+    },
+    ser::{Serialize, SerializeStruct, Serializer},
+};
 use time::{Date, PrimitiveDateTime};
 
 /// Errors that may occur when interacting with the RTC.
@@ -23,6 +34,181 @@ pub enum Error {
     InvalidSecond,
     InvalidBinaryCodedDecimal,
     Overflow,
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::PowerFailure => serializer.serialize_unit_variant("Error", 0, "PowerFailure"),
+            Self::TestMode => serializer.serialize_unit_variant("Error", 1, "TestMode"),
+            Self::AmPmBitPresent => serializer.serialize_unit_variant("Error", 2, "AmPmBitPresent"),
+            Self::InvalidStatus => serializer.serialize_unit_variant("Error", 3, "InvalidStatus"),
+            Self::InvalidMonth => serializer.serialize_unit_variant("Error", 4, "InvalidMonth"),
+            Self::InvalidDay => serializer.serialize_unit_variant("Error", 5, "InvalidDay"),
+            Self::InvalidHour => serializer.serialize_unit_variant("Error", 6, "InvalidHour"),
+            Self::InvalidMinute => serializer.serialize_unit_variant("Error", 7, "InvalidMinute"),
+            Self::InvalidSecond => serializer.serialize_unit_variant("Error", 8, "InvalidSecond"),
+            Self::InvalidBinaryCodedDecimal => {
+                serializer.serialize_unit_variant("Error", 9, "InvalidBinaryCodedDecimal")
+            }
+            Self::Overflow => serializer.serialize_unit_variant("Error", 10, "Overflow"),
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Error {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Variant {
+            PowerFailure,
+            TestMode,
+            AmPmBitPresent,
+            InvalidStatus,
+            InvalidMonth,
+            InvalidDay,
+            InvalidHour,
+            InvalidMinute,
+            InvalidSecond,
+            InvalidBinaryCodedDecimal,
+            Overflow,
+        }
+
+        impl<'de> Deserialize<'de> for Variant {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct VariantVisitor;
+
+                impl<'de> Visitor<'de> for VariantVisitor {
+                    type Value = Variant;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("`PowerFailure`, `TestMode`, `AmPmBitPresent`, `InvalidStatus`, `InvalidMonth`, `InvalidDay`, `InvalidHour`, `InvalidMinute`, `InvalidSecond`, `InvalidBinaryCodedDecimal`, or `Overflow`")
+                    }
+
+                    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            0 => Ok(Variant::PowerFailure),
+                            1 => Ok(Variant::TestMode),
+                            2 => Ok(Variant::AmPmBitPresent),
+                            3 => Ok(Variant::InvalidStatus),
+                            4 => Ok(Variant::InvalidMonth),
+                            5 => Ok(Variant::InvalidDay),
+                            6 => Ok(Variant::InvalidHour),
+                            7 => Ok(Variant::InvalidMinute),
+                            8 => Ok(Variant::InvalidSecond),
+                            9 => Ok(Variant::InvalidBinaryCodedDecimal),
+                            10 => Ok(Variant::Overflow),
+                            _ => Err(de::Error::invalid_value(Unexpected::Unsigned(value), &self)),
+                        }
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            "PowerFailure" => Ok(Variant::PowerFailure),
+                            "TestMode" => Ok(Variant::TestMode),
+                            "AmPmBitPresent" => Ok(Variant::AmPmBitPresent),
+                            "InvalidStatus" => Ok(Variant::InvalidStatus),
+                            "InvalidMonth" => Ok(Variant::InvalidMonth),
+                            "InvalidDay" => Ok(Variant::InvalidDay),
+                            "InvalidHour" => Ok(Variant::InvalidHour),
+                            "InvalidMinute" => Ok(Variant::InvalidMinute),
+                            "InvalidSecond" => Ok(Variant::InvalidSecond),
+                            "InvalidBinaryCodedDecimal" => Ok(Variant::InvalidBinaryCodedDecimal),
+                            "Overflow" => Ok(Variant::Overflow),
+                            _ => Err(de::Error::unknown_variant(value, VARIANTS)),
+                        }
+                    }
+
+                    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            b"PowerFailure" => Ok(Variant::PowerFailure),
+                            b"TestMode" => Ok(Variant::TestMode),
+                            b"AmPmBitPresent" => Ok(Variant::AmPmBitPresent),
+                            b"InvalidStatus" => Ok(Variant::InvalidStatus),
+                            b"InvalidMonth" => Ok(Variant::InvalidMonth),
+                            b"InvalidDay" => Ok(Variant::InvalidDay),
+                            b"InvalidHour" => Ok(Variant::InvalidHour),
+                            b"InvalidMinute" => Ok(Variant::InvalidMinute),
+                            b"InvalidSecond" => Ok(Variant::InvalidSecond),
+                            b"InvalidBinaryCodedDecimal" => Ok(Variant::InvalidBinaryCodedDecimal),
+                            b"Overflow" => Ok(Variant::Overflow),
+                            _ => {
+                                let utf8_value =
+                                    str::from_utf8(value).unwrap_or("\u{fffd}\u{fffd}\u{fffd}");
+                                Err(de::Error::unknown_variant(utf8_value, VARIANTS))
+                            }
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(VariantVisitor)
+            }
+        }
+
+        struct ErrorVisitor;
+
+        impl<'de> Visitor<'de> for ErrorVisitor {
+            type Value = Error;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("enum Error")
+            }
+
+            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+            where
+                A: EnumAccess<'de>,
+            {
+                let (variant, access) = data.variant()?;
+                access.unit_variant()?;
+                Ok(match variant {
+                    Variant::PowerFailure => Error::PowerFailure,
+                    Variant::TestMode => Error::TestMode,
+                    Variant::AmPmBitPresent => Error::AmPmBitPresent,
+                    Variant::InvalidStatus => Error::InvalidStatus,
+                    Variant::InvalidMonth => Error::InvalidMonth,
+                    Variant::InvalidDay => Error::InvalidDay,
+                    Variant::InvalidHour => Error::InvalidHour,
+                    Variant::InvalidMinute => Error::InvalidMinute,
+                    Variant::InvalidSecond => Error::InvalidSecond,
+                    Variant::InvalidBinaryCodedDecimal => Error::InvalidBinaryCodedDecimal,
+                    Variant::Overflow => Error::Overflow,
+                })
+            }
+        }
+
+        const VARIANTS: &[&str] = &[
+            "PowerFailure",
+            "TestMode",
+            "AmPmBitPresent",
+            "InvalidStatus",
+            "InvalidMonth",
+            "InvalidDay",
+            "InvalidHour",
+            "InvalidMinute",
+            "InvalidSecond",
+            "InvalidBinaryCodedDecimal",
+            "Overflow",
+        ];
+        deserializer.deserialize_enum("Error", VARIANTS, ErrorVisitor)
+    }
 }
 
 /// Access to the Real Time Clock.
@@ -114,5 +300,146 @@ impl Clock {
         self.base_date = datetime.date();
         self.rtc_offset = rtc_offset - datetime.time().into();
         Ok(())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for Clock {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut r#struct = serializer.serialize_struct("Clock", 2)?;
+        r#struct.serialize_field("base_date", &self.base_date)?;
+        r#struct.serialize_field("rtc_offset", &self.rtc_offset)?;
+        r#struct.end()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Clock {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Field {
+            BaseDate,
+            RtcOffset,
+        }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("`base_date` or `rtc_offset`")
+                    }
+
+                    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            0 => Ok(Field::BaseDate),
+                            1 => Ok(Field::RtcOffset),
+                            _ => Err(de::Error::invalid_value(Unexpected::Unsigned(value), &self)),
+                        }
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            "base_date" => Ok(Field::BaseDate),
+                            "rtc_offset" => Ok(Field::RtcOffset),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+
+                    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            b"base_date" => Ok(Field::BaseDate),
+                            b"rtc_offset" => Ok(Field::RtcOffset),
+                            _ => {
+                                let utf8_value =
+                                    str::from_utf8(value).unwrap_or("\u{fffd}\u{fffd}\u{fffd}");
+                                Err(de::Error::unknown_field(utf8_value, FIELDS))
+                            }
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct ClockVisitor;
+
+        impl<'de> Visitor<'de> for ClockVisitor {
+            type Value = Clock;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct Clock")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let base_date = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let rtc_offset = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                Ok(Clock {
+                    base_date,
+                    rtc_offset,
+                })
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut base_date = None;
+                let mut rtc_offset = None;
+
+                while let Some(field) = map.next_key()? {
+                    match field {
+                        Field::BaseDate => {
+                            if base_date.is_some() {
+                                return Err(de::Error::duplicate_field("base_date"));
+                            }
+                            base_date = Some(map.next_value()?);
+                        }
+                        Field::RtcOffset => {
+                            if rtc_offset.is_some() {
+                                return Err(de::Error::duplicate_field("rtc_offset"));
+                            }
+                            rtc_offset = Some(map.next_value()?);
+                        }
+                    }
+                }
+
+                Ok(Clock {
+                    base_date: base_date.ok_or_else(|| de::Error::missing_field("base_date"))?,
+                    rtc_offset: rtc_offset.ok_or_else(|| de::Error::missing_field("rtc_offset"))?,
+                })
+            }
+        }
+
+        const FIELDS: &[&str] = &["base_date", "rtc_offset"];
+        deserializer.deserialize_struct("Clock", FIELDS, ClockVisitor)
     }
 }

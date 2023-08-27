@@ -5,7 +5,11 @@ edition = "2021"
 
 [dependencies]
 deranged = {version = "0.3.8", default-features = false}
-time = {version = "0.3.26", default-features = false}
+serde = {version = "1.0.188", default-features = false, optional = true}
+time = {version = "0.3.27", default-features = false}
 
 [dev-dependencies]
 claims = "0.7.1"
+
+[features]
+serde = ["dep:serde", "deranged/serde", "time/serde"]
