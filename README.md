@@ -1,5 +1,8 @@
 #gba_clock
 
+[![crates.io](https://img.shields.io/crates/v/gba_clock)](https://crates.io/crates/gba_clock)
+[![docs.rs](https://docs.rs/gba_clock/badge.svg)](https://docs.rs/gba_clock)
+
 A real-time clock library for the GBA.
 
 Provides access to the RTC for programs running on a Game Boy Advance, returning dates and times that are interoperable with the [`time`](https://crates.io/crates/time) library.
