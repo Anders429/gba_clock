@@ -1,5 +1,6 @@
 # gba_clock
 
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Anders429/gba_clock/ci.yml?branch=master)](https://github.com/Anders429/gba_clock/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/gba_clock)](https://crates.io/crates/gba_clock)
 [![docs.rs](https://docs.rs/gba_clock/badge.svg)](https://docs.rs/gba_clock)
 [![License](https://img.shields.io/crates/l/gba_clock)](#license)
