@@ -2,6 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/gba_clock)](https://crates.io/crates/gba_clock)
 [![docs.rs](https://docs.rs/gba_clock/badge.svg)](https://docs.rs/gba_clock)
+[![License](https://img.shields.io/crates/l/gba_clock)](#license)
 
 A real-time clock library for the GBA.
 
@@ -35,3 +36,18 @@ let time = clock
     .read_datetime()
     .expect("could not read the current time");
 ```
+
+## License
+This project is licensed under either of
+
+* Apache License, Version 2.0
+([LICENSE-APACHE](https://github.com/Anders429/gba_clock/blob/HEAD/LICENSE-APACHE) or
+http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license
+([LICENSE-MIT](https://github.com/Anders429/gba_clock/blob/HEAD/LICENSE-MIT) or
+http://opensource.org/licenses/MIT)
+
+at your option.
+
+### Contribution
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
