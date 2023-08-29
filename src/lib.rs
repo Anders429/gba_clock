@@ -34,9 +34,13 @@ mod date_time;
 mod gpio;
 
 #[cfg(feature = "serde")]
+use core::str;
 use core::{
     fmt,
-    str,
+    fmt::{
+        Display,
+        Formatter,
+    },
 };
 use date_time::RtcOffset;
 use deranged::RangedU32;
@@ -87,6 +91,26 @@ pub enum Error {
     InvalidSecond,
     InvalidBinaryCodedDecimal,
     Overflow,
+}
+
+impl Display for Error {
+    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::PowerFailure => formatter.write_str("RTC power failure"),
+            Self::TestMode => formatter.write_str("RTC is in test mode"),
+            Self::AmPmBitPresent => formatter.write_str("RTC is not in 24-hour mode"),
+            Self::InvalidStatus => formatter.write_str("RTC returned an invalid status"),
+            Self::InvalidMonth => formatter.write_str("RTC returned an invalid month"),
+            Self::InvalidDay => formatter.write_str("RTC returned an invalid day"),
+            Self::InvalidHour => formatter.write_str("RTC returned an invalid hour"),
+            Self::InvalidMinute => formatter.write_str("RTC returned an invalid minute"),
+            Self::InvalidSecond => formatter.write_str("RTC returned an invalid second"),
+            Self::InvalidBinaryCodedDecimal => {
+                formatter.write_str("RTC returned a value that was not a binary coded decimal")
+            }
+            Self::Overflow => formatter.write_str("the stored time is too large to be represented"),
+        }
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -143,7 +167,7 @@ impl<'de> Deserialize<'de> for Error {
                 impl<'de> Visitor<'de> for VariantVisitor {
                     type Value = Variant;
 
-                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
                         formatter.write_str("`PowerFailure`, `TestMode`, `AmPmBitPresent`, `InvalidStatus`, `InvalidMonth`, `InvalidDay`, `InvalidHour`, `InvalidMinute`, `InvalidSecond`, `InvalidBinaryCodedDecimal`, or `Overflow`")
                     }
 
@@ -221,7 +245,7 @@ impl<'de> Deserialize<'de> for Error {
         impl<'de> Visitor<'de> for ErrorVisitor {
             type Value = Error;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
                 formatter.write_str("enum Error")
             }
 
@@ -390,7 +414,7 @@ impl<'de> Deserialize<'de> for Clock {
                 impl<'de> Visitor<'de> for FieldVisitor {
                     type Value = Field;
 
-                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
                         formatter.write_str("`base_date` or `rtc_offset`")
                     }
 
@@ -441,7 +465,7 @@ impl<'de> Deserialize<'de> for Clock {
         impl<'de> Visitor<'de> for ClockVisitor {
             type Value = Clock;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
                 formatter.write_str("struct Clock")
             }
 
