@@ -2,20 +2,13 @@
 
 use crate::{
     bcd::Bcd,
-    date_time::{
-        Day,
-        Hour,
-        Minute,
-        Second,
-        Year,
-    },
+    date_time::RtcOffset,
     Error,
 };
 use core::ops::{
     BitAnd,
     BitOr,
 };
-use time::Month;
 
 /// I/O Port Data.
 ///
@@ -264,8 +257,8 @@ pub(crate) fn reset() {
     }
 }
 
-/// Attempt to read the date and time from the RTC.
-pub(crate) fn try_read_datetime() -> Result<(Year, Month, Day, Hour, Minute, Second), Error> {
+/// Attempt to read the current RTC date and time value as an `RtcOffset`.
+pub(crate) fn try_read_offset() -> Result<RtcOffset, Error> {
     // Disable interrupts, storing the previous value.
     //
     // This prevents interrupts while reading data from the device. This is necessary because GPIO
@@ -302,7 +295,7 @@ pub(crate) fn try_read_datetime() -> Result<(Year, Month, Day, Hour, Minute, Sec
         IME.write_volatile(previous_ime);
     }
 
-    Ok((
+    Ok(RtcOffset::new(
         Bcd::try_from(year)?.into(),
         Bcd::try_from(month)?.try_into()?,
         Bcd::try_from(day)?.try_into()?,

@@ -49,7 +49,7 @@ use gpio::{
     is_test_mode,
     reset,
     set_status,
-    try_read_datetime,
+    try_read_offset,
     try_read_status,
     Status,
 };
@@ -333,8 +333,7 @@ impl Clock {
         // Set to 24-hour time.
         set_status(Status::HOUR_24);
 
-        let (year, month, day, hour, minute, second) = try_read_datetime()?;
-        let rtc_offset = RtcOffset::new(year, month, day, hour, minute, second);
+        let rtc_offset = try_read_offset()?;
 
         Ok(Self {
             base_date: datetime.date(),
@@ -344,8 +343,7 @@ impl Clock {
 
     /// Reads the currently stored date and time.
     pub fn read_datetime(&self) -> Result<PrimitiveDateTime, Error> {
-        let (year, month, day, hour, minute, second) = try_read_datetime()?;
-        let rtc_offset = RtcOffset::new(year, month, day, hour, minute, second);
+        let rtc_offset = try_read_offset()?;
 
         let duration = if rtc_offset.0 >= self.rtc_offset.0 {
             RtcOffset(unsafe { rtc_offset.0.unchecked_sub(self.rtc_offset.0.get()) }).into()
@@ -372,8 +370,7 @@ impl Clock {
     /// Therefore, the date and time are stored as being offset from the current RTC date and time
     /// to maintain maximum compatibility.
     pub fn write_datetime(&mut self, datetime: PrimitiveDateTime) -> Result<(), Error> {
-        let (year, month, day, hour, minute, second) = try_read_datetime()?;
-        let rtc_offset = RtcOffset::new(year, month, day, hour, minute, second);
+        let rtc_offset = try_read_offset()?;
         self.base_date = datetime.date();
         self.rtc_offset = rtc_offset - datetime.time().into();
         Ok(())
