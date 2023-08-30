@@ -42,7 +42,10 @@ use core::{
         Formatter,
     },
 };
-use date_time::RtcOffset;
+use date_time::{
+    RtcOffset,
+    RtcTimeOffset,
+};
 use deranged::RangedU32;
 use gpio::{
     enable,
@@ -51,6 +54,7 @@ use gpio::{
     set_status,
     try_read_offset,
     try_read_status,
+    try_read_time_offset,
     Status,
 };
 #[cfg(feature = "serde")]
@@ -75,6 +79,7 @@ use serde::{
 use time::{
     Date,
     PrimitiveDateTime,
+    Time,
 };
 
 /// Errors that may occur when interacting with the RTC.
@@ -373,6 +378,64 @@ impl Clock {
         let rtc_offset = try_read_offset()?;
         self.base_date = datetime.date();
         self.rtc_offset = rtc_offset - datetime.time().into();
+        Ok(())
+    }
+
+    /// Reads the currently stored time.
+    ///
+    /// This is always faster than using [`Clock::read_datetime()`], as it only requires reading
+    /// three bytes from the RTC instead of seven.
+    pub fn read_time(&self) -> Result<Time, Error> {
+        let rtc_time_offset = try_read_time_offset()?;
+        let stored_time_offset: RtcTimeOffset = self.rtc_offset.into();
+
+        Ok(if rtc_time_offset.0 >= stored_time_offset.0 {
+            RtcTimeOffset(unsafe { rtc_time_offset.0.unchecked_sub(stored_time_offset.0.get()) })
+                .into()
+        } else {
+            RtcTimeOffset(unsafe {
+                RangedU32::MAX
+                    .unchecked_sub(stored_time_offset.0.get())
+                    .unchecked_add(rtc_time_offset.0.get())
+                    .unchecked_add(1)
+            })
+            .into()
+        })
+    }
+
+    /// Writes a new time.
+    ///
+    /// This preserves the stored date.
+    ///
+    /// Note that this does not actually change the stored time in the RTC itself. While RTC values
+    /// are writable on real hardware, they are often not writable in GBA emulators. Therefore, the
+    /// date and time are stored as being offset from the current RTC date and time to maintain
+    /// maximum compatibility.
+    pub fn write_time(&mut self, time: Time) -> Result<(), Error> {
+        let rtc_time_offset = try_read_time_offset()?;
+        let stored_time_offset = RtcTimeOffset::from(self.rtc_offset);
+
+        let current_time: Time = if rtc_time_offset.0 >= stored_time_offset.0 {
+            RtcTimeOffset(unsafe { rtc_time_offset.0.unchecked_sub(stored_time_offset.0.get()) })
+                .into()
+        } else {
+            RtcTimeOffset(unsafe {
+                RangedU32::MAX
+                    .unchecked_sub(stored_time_offset.0.get())
+                    .unchecked_add(rtc_time_offset.0.get())
+                    .unchecked_add(1)
+            })
+            .into()
+        };
+
+        // This difference will be within ±86,399. It can therefore fit within an i32.
+        let delta = (current_time - time).whole_seconds() as i32;
+        if delta.is_negative() {
+            self.rtc_offset -= RtcOffset(unsafe { RangedU32::new_unchecked(delta.unsigned_abs()) });
+        } else {
+            self.rtc_offset += RtcOffset(unsafe { RangedU32::new_unchecked(delta.unsigned_abs()) });
+        }
+
         Ok(())
     }
 }

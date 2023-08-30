@@ -2,7 +2,10 @@
 
 use crate::{
     bcd::Bcd,
-    date_time::RtcOffset,
+    date_time::{
+        RtcOffset,
+        RtcTimeOffset,
+    },
     Error,
 };
 use core::ops::{
@@ -305,7 +308,7 @@ pub(crate) fn try_read_offset() -> Result<RtcOffset, Error> {
     ))
 }
 
-pub(crate) fn is_test_mode() -> bool {
+pub(crate) fn try_read_time_offset() -> Result<RtcTimeOffset, Error> {
     // Disable interrupts, storing the previous value.
     //
     // This prevents interrupts while reading data from the device. This is necessary because GPIO
@@ -321,9 +324,57 @@ pub(crate) fn is_test_mode() -> bool {
     }
     send_command(Command::ReadTime);
 
+    // Receive time.
+    unsafe {
+        RW_MODE.write_volatile(RwMode::Read);
+    }
+    let hour = read_byte();
+    let minute = read_byte();
+    let second = read_byte();
+    unsafe {
+        DATA.write_volatile(Data::SCK);
+        DATA.write_volatile(Data::SCK);
+    }
+
+    // Restore the previous interrupt enable value.
+    unsafe {
+        IME.write_volatile(previous_ime);
+    }
+
+    Ok(RtcTimeOffset::new(
+        Bcd::try_from(hour)?.try_into()?,
+        Bcd::try_from(minute)?.try_into()?,
+        Bcd::try_from(second)?.try_into()?,
+    ))
+}
+
+pub(crate) fn is_test_mode() -> bool {
+    // Disable interrupts, storing the previous value.
+    //
+    // This prevents interrupts while reading data from the device. This is necessary because GPIO
+    // reads data one bit at a time.
+    let previous_ime = unsafe { IME.read_volatile() };
+    unsafe { IME.write_volatile(false) };
+
+    // Request time.
+    unsafe {
+        DATA.write_volatile(Data::SCK);
+        DATA.write_volatile(Data::CS | Data::SCK);
+        RW_MODE.write_volatile(RwMode::Write);
+    }
+    send_command(Command::ReadTime);
+
+    // Receive time.
+    unsafe {
+        RW_MODE.write_volatile(RwMode::Read);
+    }
     let _hour = read_byte();
     let _minute = read_byte();
     let second = read_byte();
+    unsafe {
+        DATA.write_volatile(Data::SCK);
+        DATA.write_volatile(Data::SCK);
+    }
 
     // Restore the previous interrupt enable value.
     unsafe {

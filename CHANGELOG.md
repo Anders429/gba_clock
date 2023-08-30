@@ -3,6 +3,7 @@
 ## Unreleased
 ### Added
 - Implemented `Display` for `Error`.
+- `Clock` methods for reading and writing time by itself. 
 
 ## 0.1.0 - 2023-08-27
 ### Added

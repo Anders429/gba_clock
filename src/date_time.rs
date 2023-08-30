@@ -3,7 +3,11 @@
 use core::{
     fmt,
     fmt::Debug,
-    ops::Sub,
+    ops::{
+        AddAssign,
+        Sub,
+        SubAssign,
+    },
 };
 use deranged::{
     RangedU32,
@@ -86,6 +90,30 @@ impl From<RtcOffset> for Duration {
     }
 }
 
+impl AddAssign for RtcOffset {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self(self.0.checked_add(other.0.get()).unwrap_or_else(|| {
+            if self.0 > other.0 {
+                // SAFETY: Subtracting `self.0` from the max range will always work. Also, since
+                // `self.0` is larger, adding `other.0` afterwards will always be within the range.
+                unsafe {
+                    RangedU32::MAX
+                        .unchecked_sub(self.0.get())
+                        .unchecked_add(other.0.get())
+                }
+            } else {
+                // SAFETY: Subtracting `other.0` from the max range will always work. Also, since
+                // `other.0` is larger, adding `self.0` afterwards will always be within the range.
+                unsafe {
+                    RangedU32::MAX
+                        .unchecked_sub(other.0.get())
+                        .unchecked_add(self.0.get())
+                }
+            }
+        }))
+    }
+}
+
 impl Sub for RtcOffset {
     type Output = RtcOffset;
 
@@ -100,6 +128,12 @@ impl Sub for RtcOffset {
                     .unchecked_add(1)
             }
         }))
+    }
+}
+
+impl SubAssign for RtcOffset {
+    fn sub_assign(&mut self, other: Self) {
+        *self = *self - other;
     }
 }
 
@@ -196,6 +230,31 @@ pub(crate) fn calculate_rtc_offset(
         + day.0.get() as u32
         - 1;
     second.0.get() as u32 + minute.0.get() as u32 * 60 + hour.0.get() as u32 * 3600 + days * 86400
+}
+
+pub(crate) struct RtcTimeOffset(pub(crate) RangedU32<0, 86_399>);
+
+impl RtcTimeOffset {
+    pub(crate) fn new(hour: Hour, minute: Minute, second: Second) -> RtcTimeOffset {
+        RtcTimeOffset(unsafe {
+            RangedU32::new_unchecked(
+                hour.0.get() as u32 * 3600 + minute.0.get() as u32 * 60 + second.0.get() as u32,
+            )
+        })
+    }
+}
+
+impl From<RtcOffset> for RtcTimeOffset {
+    fn from(rtc_offset: RtcOffset) -> Self {
+        // SAFETY: The remainder calculated here is guaranteed to be in the required range.
+        RtcTimeOffset(unsafe { RangedU32::new_unchecked(rtc_offset.0.get() % 86400) })
+    }
+}
+
+impl From<RtcTimeOffset> for Time {
+    fn from(rtc_time_offset: RtcTimeOffset) -> Self {
+        Time::MIDNIGHT + Duration::seconds(rtc_time_offset.0.get().into())
+    }
 }
 
 #[cfg(test)]
