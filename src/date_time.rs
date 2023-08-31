@@ -235,7 +235,7 @@ pub(crate) fn calculate_rtc_offset(
 /// The current number of seconds stored in the RTC.
 ///
 /// In other words, this is the number of seconds since midnight according to the RTC's clock.
-#[derive(Debug, Eq, PartialEq)] // TODO: Better debug implementation.
+#[derive(Eq, PartialEq)]
 pub(crate) struct RtcTimeOffset(pub(crate) RangedU32<0, 86_399>);
 
 impl RtcTimeOffset {
@@ -259,6 +259,20 @@ impl From<RtcDateTimeOffset> for RtcTimeOffset {
 impl From<RtcTimeOffset> for Time {
     fn from(rtc_time_offset: RtcTimeOffset) -> Self {
         Time::MIDNIGHT + Duration::seconds(rtc_time_offset.0.get().into())
+    }
+}
+
+impl Debug for RtcTimeOffset {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let origin = Time::MIDNIGHT;
+        let time = origin + Duration::seconds(self.0.get().into());
+
+        formatter
+            .debug_struct("RtcTimeOffset")
+            .field("hours", &time.hour())
+            .field("minutes", &time.minute())
+            .field("seconds", &time.second())
+            .finish()
     }
 }
 
