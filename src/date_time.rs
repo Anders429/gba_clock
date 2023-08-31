@@ -172,7 +172,7 @@ impl Debug for RtcDateTimeOffset {
         let datetime = origin + Duration::seconds(self.0.get().into());
 
         formatter
-            .debug_struct("RtcOffset")
+            .debug_struct("RtcDateTimeOffset")
             .field("year", &datetime.year())
             .field("month", &datetime.month())
             .field("day", &datetime.day())
