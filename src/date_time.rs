@@ -56,9 +56,9 @@ pub(crate) struct Minute(pub(crate) RangedU8<0, 59>);
 pub(crate) struct Second(pub(crate) RangedU8<0, 59>);
 
 #[derive(Clone, Copy)]
-pub(crate) struct RtcOffset(pub(crate) RangedU32<0, 3_155_759_999>);
+pub(crate) struct RtcDateTimeOffset(pub(crate) RangedU32<0, 3_155_759_999>);
 
-impl RtcOffset {
+impl RtcDateTimeOffset {
     pub(crate) fn new(
         year: Year,
         month: Month,
@@ -66,15 +66,15 @@ impl RtcOffset {
         hour: Hour,
         minute: Minute,
         second: Second,
-    ) -> RtcOffset {
+    ) -> RtcDateTimeOffset {
         // SAFETY: The output of `calculate_rtc_offset()` is guaranteed to be within the range.
-        RtcOffset(unsafe {
+        RtcDateTimeOffset(unsafe {
             RangedU32::new_unchecked(calculate_rtc_offset(year, month, day, hour, minute, second))
         })
     }
 }
 
-impl From<Time> for RtcOffset {
+impl From<Time> for RtcDateTimeOffset {
     fn from(time: Time) -> Self {
         Self(unsafe {
             RangedU32::new_unchecked(
@@ -84,13 +84,13 @@ impl From<Time> for RtcOffset {
     }
 }
 
-impl From<RtcOffset> for Duration {
-    fn from(rtc_offset: RtcOffset) -> Self {
+impl From<RtcDateTimeOffset> for Duration {
+    fn from(rtc_offset: RtcDateTimeOffset) -> Self {
         Self::seconds(rtc_offset.0.get().into())
     }
 }
 
-impl AddAssign for RtcOffset {
+impl AddAssign for RtcDateTimeOffset {
     fn add_assign(&mut self, other: Self) {
         *self = Self(self.0.checked_add(other.0.get()).unwrap_or_else(|| {
             if self.0 > other.0 {
@@ -114,8 +114,8 @@ impl AddAssign for RtcOffset {
     }
 }
 
-impl Sub for RtcOffset {
-    type Output = RtcOffset;
+impl Sub for RtcDateTimeOffset {
+    type Output = RtcDateTimeOffset;
 
     fn sub(self, other: Self) -> Self::Output {
         Self(self.0.checked_sub(other.0.get()).unwrap_or_else(|| {
@@ -131,13 +131,13 @@ impl Sub for RtcOffset {
     }
 }
 
-impl SubAssign for RtcOffset {
+impl SubAssign for RtcDateTimeOffset {
     fn sub_assign(&mut self, other: Self) {
         *self = *self - other;
     }
 }
 
-impl Debug for RtcOffset {
+impl Debug for RtcDateTimeOffset {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let origin =
             unsafe { Date::from_calendar_date(2000, Month::January, 1).unwrap_unchecked() }
@@ -157,7 +157,7 @@ impl Debug for RtcOffset {
 }
 
 #[cfg(feature = "serde")]
-impl Serialize for RtcOffset {
+impl Serialize for RtcDateTimeOffset {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -167,7 +167,7 @@ impl Serialize for RtcOffset {
 }
 
 #[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for RtcOffset {
+impl<'de> Deserialize<'de> for RtcDateTimeOffset {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -175,7 +175,7 @@ impl<'de> Deserialize<'de> for RtcOffset {
         struct RtcOffsetVisitor;
 
         impl<'de> Visitor<'de> for RtcOffsetVisitor {
-            type Value = RtcOffset;
+            type Value = RtcDateTimeOffset;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("struct RtcOffset")
@@ -185,7 +185,7 @@ impl<'de> Deserialize<'de> for RtcOffset {
             where
                 D: Deserializer<'de>,
             {
-                Ok(RtcOffset(RangedU32::deserialize(deserializer)?))
+                Ok(RtcDateTimeOffset(RangedU32::deserialize(deserializer)?))
             }
         }
 
@@ -244,8 +244,8 @@ impl RtcTimeOffset {
     }
 }
 
-impl From<RtcOffset> for RtcTimeOffset {
-    fn from(rtc_offset: RtcOffset) -> Self {
+impl From<RtcDateTimeOffset> for RtcTimeOffset {
+    fn from(rtc_offset: RtcDateTimeOffset) -> Self {
         // SAFETY: The remainder calculated here is guaranteed to be in the required range.
         RtcTimeOffset(unsafe { RangedU32::new_unchecked(rtc_offset.0.get() % 86400) })
     }

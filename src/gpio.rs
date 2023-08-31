@@ -3,7 +3,7 @@
 use crate::{
     bcd::Bcd,
     date_time::{
-        RtcOffset,
+        RtcDateTimeOffset,
         RtcTimeOffset,
     },
     Error,
@@ -261,7 +261,7 @@ pub(crate) fn reset() {
 }
 
 /// Attempt to read the current RTC date and time value as an `RtcOffset`.
-pub(crate) fn try_read_offset() -> Result<RtcOffset, Error> {
+pub(crate) fn try_read_datetime_offset() -> Result<RtcDateTimeOffset, Error> {
     // Disable interrupts, storing the previous value.
     //
     // This prevents interrupts while reading data from the device. This is necessary because GPIO
@@ -298,7 +298,7 @@ pub(crate) fn try_read_offset() -> Result<RtcOffset, Error> {
         IME.write_volatile(previous_ime);
     }
 
-    Ok(RtcOffset::new(
+    Ok(RtcDateTimeOffset::new(
         Bcd::try_from(year)?.into(),
         Bcd::try_from(month)?.try_into()?,
         Bcd::try_from(day)?.try_into()?,

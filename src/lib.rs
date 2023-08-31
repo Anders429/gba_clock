@@ -43,7 +43,7 @@ use core::{
     },
 };
 use date_time::{
-    RtcOffset,
+    RtcDateTimeOffset,
     RtcTimeOffset,
 };
 use deranged::RangedU32;
@@ -52,7 +52,7 @@ use gpio::{
     is_test_mode,
     reset,
     set_status,
-    try_read_offset,
+    try_read_datetime_offset,
     try_read_status,
     try_read_time_offset,
     Status,
@@ -310,7 +310,7 @@ pub struct Clock {
     ///
     /// This is used to calculate the current date and time by calculating how much time has
     /// elapsed on the RTC past this offset and adding this value to the `base_date`.
-    rtc_offset: RtcOffset,
+    rtc_offset: RtcDateTimeOffset,
 }
 
 impl Clock {
@@ -338,7 +338,7 @@ impl Clock {
         // Set to 24-hour time.
         set_status(Status::HOUR_24);
 
-        let rtc_offset = try_read_offset()?;
+        let rtc_offset = try_read_datetime_offset()?;
 
         Ok(Self {
             base_date: datetime.date(),
@@ -348,12 +348,12 @@ impl Clock {
 
     /// Reads the currently stored date and time.
     pub fn read_datetime(&self) -> Result<PrimitiveDateTime, Error> {
-        let rtc_offset = try_read_offset()?;
+        let rtc_offset = try_read_datetime_offset()?;
 
         let duration = if rtc_offset.0 >= self.rtc_offset.0 {
-            RtcOffset(unsafe { rtc_offset.0.unchecked_sub(self.rtc_offset.0.get()) }).into()
+            RtcDateTimeOffset(unsafe { rtc_offset.0.unchecked_sub(self.rtc_offset.0.get()) }).into()
         } else {
-            RtcOffset(unsafe {
+            RtcDateTimeOffset(unsafe {
                 RangedU32::MAX
                     .unchecked_sub(self.rtc_offset.0.get())
                     .unchecked_add(rtc_offset.0.get())
@@ -375,7 +375,7 @@ impl Clock {
     /// Therefore, the date and time are stored as being offset from the current RTC date and time
     /// to maintain maximum compatibility.
     pub fn write_datetime(&mut self, datetime: PrimitiveDateTime) -> Result<(), Error> {
-        let rtc_offset = try_read_offset()?;
+        let rtc_offset = try_read_datetime_offset()?;
         self.base_date = datetime.date();
         self.rtc_offset = rtc_offset - datetime.time().into();
         Ok(())
@@ -431,9 +431,11 @@ impl Clock {
         // This difference will be within ±86,399. It can therefore fit within an i32.
         let delta = (current_time - time).whole_seconds() as i32;
         if delta.is_negative() {
-            self.rtc_offset -= RtcOffset(unsafe { RangedU32::new_unchecked(delta.unsigned_abs()) });
+            self.rtc_offset -=
+                RtcDateTimeOffset(unsafe { RangedU32::new_unchecked(delta.unsigned_abs()) });
         } else {
-            self.rtc_offset += RtcOffset(unsafe { RangedU32::new_unchecked(delta.unsigned_abs()) });
+            self.rtc_offset +=
+                RtcDateTimeOffset(unsafe { RangedU32::new_unchecked(delta.unsigned_abs()) });
         }
 
         Ok(())
