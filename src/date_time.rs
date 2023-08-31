@@ -55,7 +55,7 @@ pub(crate) struct Minute(pub(crate) RangedU8<0, 59>);
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Second(pub(crate) RangedU8<0, 59>);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) struct RtcDateTimeOffset(pub(crate) RangedU32<0, 3_155_759_999>);
 
 impl RtcDateTimeOffset {
@@ -67,10 +67,37 @@ impl RtcDateTimeOffset {
         minute: Minute,
         second: Second,
     ) -> RtcDateTimeOffset {
-        // SAFETY: The output of `calculate_rtc_offset()` is guaranteed to be within the range.
-        RtcDateTimeOffset(unsafe {
-            RangedU32::new_unchecked(calculate_rtc_offset(year, month, day, hour, minute, second))
-        })
+        let days = year.0.get() as u32 * 365
+            + if year.0.get() > 0 {
+                (year.0.get() as u32 - 1) / 4 + 1
+            } else {
+                0
+            }
+            + match month {
+                Month::January => 0,
+                Month::February => 31,
+                Month::March => 59,
+                Month::April => 90,
+                Month::May => 120,
+                Month::June => 151,
+                Month::July => 181,
+                Month::August => 212,
+                Month::September => 243,
+                Month::October => 273,
+                Month::November => 304,
+                Month::December => 334,
+            }
+            + if year.0.get() % 4 == 0 && u8::from(month) > 2 {
+                1
+            } else {
+                0
+            }
+            + day.0.get() as u32
+            - 1;
+        let seconds = RtcTimeOffset::new(hour, minute, second).0.get() + days * 86400;
+
+        // SAFETY: This calculated value is guaranteed to be within the valid range.
+        RtcDateTimeOffset(unsafe { RangedU32::new_unchecked(seconds) })
     }
 }
 
@@ -193,45 +220,6 @@ impl<'de> Deserialize<'de> for RtcDateTimeOffset {
     }
 }
 
-/// Calculates the number of seconds since the RTC's origin date.
-pub(crate) fn calculate_rtc_offset(
-    year: Year,
-    month: Month,
-    day: Day,
-    hour: Hour,
-    minute: Minute,
-    second: Second,
-) -> u32 {
-    let days = year.0.get() as u32 * 365
-        + if year.0.get() > 0 {
-            (year.0.get() as u32 - 1) / 4 + 1
-        } else {
-            0
-        }
-        + match month {
-            Month::January => 0,
-            Month::February => 31,
-            Month::March => 59,
-            Month::April => 90,
-            Month::May => 120,
-            Month::June => 151,
-            Month::July => 181,
-            Month::August => 212,
-            Month::September => 243,
-            Month::October => 273,
-            Month::November => 304,
-            Month::December => 334,
-        }
-        + if year.0.get() % 4 == 0 && u8::from(month) > 2 {
-            1
-        } else {
-            0
-        }
-        + day.0.get() as u32
-        - 1;
-    second.0.get() as u32 + minute.0.get() as u32 * 60 + hour.0.get() as u32 * 3600 + days * 86400
-}
-
 /// The current number of seconds stored in the RTC.
 ///
 /// In other words, this is the number of seconds since midnight according to the RTC's clock.
@@ -279,10 +267,10 @@ impl Debug for RtcTimeOffset {
 #[cfg(test)]
 mod tests {
     use super::{
-        calculate_rtc_offset,
         Day,
         Hour,
         Minute,
+        RtcDateTimeOffset,
         RtcTimeOffset,
         Second,
         Year,
@@ -354,122 +342,122 @@ mod tests {
     }
 
     #[test]
-    fn calculate_rtc_offset_min() {
+    fn rtc_datetime_offset_min() {
         assert_eq!(
-            calculate_rtc_offset(
-                Year(RangedU8::new_static::<0>()),
+            RtcDateTimeOffset::new(
+                Year(RangedU8::MIN),
                 Month::January,
-                Day(RangedU8::new_static::<1>()),
-                Hour(RangedU8::new_static::<0>()),
-                Minute(RangedU8::new_static::<0>()),
-                Second(RangedU8::new_static::<0>())
+                Day(RangedU8::MIN),
+                Hour(RangedU8::MIN),
+                Minute(RangedU8::MIN),
+                Second(RangedU8::MIN)
             ),
-            0
+            RtcDateTimeOffset(RangedU32::MIN)
         );
     }
 
     #[test]
-    fn calculate_rtc_offset_max() {
+    fn rtc_datetime_offset_max() {
         assert_eq!(
-            calculate_rtc_offset(
-                Year(RangedU8::new_static::<99>()),
+            RtcDateTimeOffset::new(
+                Year(RangedU8::MAX),
                 Month::December,
-                Day(RangedU8::new_static::<31>()),
-                Hour(RangedU8::new_static::<23>()),
-                Minute(RangedU8::new_static::<59>()),
-                Second(RangedU8::new_static::<59>())
+                Day(RangedU8::MAX),
+                Hour(RangedU8::MAX),
+                Minute(RangedU8::MAX),
+                Second(RangedU8::MAX)
             ),
-            3_155_759_999
+            RtcDateTimeOffset(RangedU32::MAX)
         );
     }
 
     #[test]
-    fn calculate_rtc_offset_seconds() {
+    fn rtc_datetime_offset_seconds() {
         assert_eq!(
-            calculate_rtc_offset(
-                Year(RangedU8::new_static::<0>()),
+            RtcDateTimeOffset::new(
+                Year(RangedU8::MIN),
                 Month::January,
-                Day(RangedU8::new_static::<1>()),
-                Hour(RangedU8::new_static::<0>()),
-                Minute(RangedU8::new_static::<0>()),
+                Day(RangedU8::MIN),
+                Hour(RangedU8::MIN),
+                Minute(RangedU8::MIN),
                 Second(RangedU8::new_static::<42>())
             ),
-            42
+            RtcDateTimeOffset(RangedU32::new_static::<42>())
         );
     }
 
     #[test]
-    fn calculate_rtc_offset_minutes() {
+    fn rtc_datetime_offset_minutes() {
         assert_eq!(
-            calculate_rtc_offset(
-                Year(RangedU8::new_static::<0>()),
+            RtcDateTimeOffset::new(
+                Year(RangedU8::MIN),
                 Month::January,
-                Day(RangedU8::new_static::<1>()),
-                Hour(RangedU8::new_static::<0>()),
+                Day(RangedU8::MIN),
+                Hour(RangedU8::MIN),
                 Minute(RangedU8::new_static::<42>()),
-                Second(RangedU8::new_static::<0>())
+                Second(RangedU8::MIN)
             ),
-            2_520
+            RtcDateTimeOffset(RangedU32::new_static::<2_520>())
         );
     }
 
     #[test]
-    fn calculate_rtc_offset_hours() {
+    fn rtc_datetime_offset_hours() {
         assert_eq!(
-            calculate_rtc_offset(
-                Year(RangedU8::new_static::<0>()),
+            RtcDateTimeOffset::new(
+                Year(RangedU8::MIN),
                 Month::January,
-                Day(RangedU8::new_static::<1>()),
+                Day(RangedU8::MIN),
                 Hour(RangedU8::new_static::<18>()),
-                Minute(RangedU8::new_static::<0>()),
-                Second(RangedU8::new_static::<0>())
+                Minute(RangedU8::MIN),
+                Second(RangedU8::MIN)
             ),
-            64_800
+            RtcDateTimeOffset(RangedU32::new_static::<64_800>())
         );
     }
 
     #[test]
-    fn calculate_rtc_offset_days() {
+    fn rtc_datetime_offset_days() {
         assert_eq!(
-            calculate_rtc_offset(
-                Year(RangedU8::new_static::<0>()),
+            RtcDateTimeOffset::new(
+                Year(RangedU8::MIN),
                 Month::January,
                 Day(RangedU8::new_static::<27>()),
-                Hour(RangedU8::new_static::<0>()),
-                Minute(RangedU8::new_static::<0>()),
-                Second(RangedU8::new_static::<0>())
+                Hour(RangedU8::MIN),
+                Minute(RangedU8::MIN),
+                Second(RangedU8::MIN)
             ),
-            2_246_400
+            RtcDateTimeOffset(RangedU32::new_static::<2_246_400>())
         );
     }
 
     #[test]
-    fn calculate_rtc_offset_months() {
+    fn rtc_datetime_offset_months() {
         assert_eq!(
-            calculate_rtc_offset(
-                Year(RangedU8::new_static::<0>()),
+            RtcDateTimeOffset::new(
+                Year(RangedU8::MIN),
                 Month::October,
-                Day(RangedU8::new_static::<1>()),
-                Hour(RangedU8::new_static::<0>()),
-                Minute(RangedU8::new_static::<0>()),
-                Second(RangedU8::new_static::<0>())
+                Day(RangedU8::MIN),
+                Hour(RangedU8::MIN),
+                Minute(RangedU8::MIN),
+                Second(RangedU8::MIN)
             ),
-            23_673_600
+            RtcDateTimeOffset(RangedU32::new_static::<23_673_600>())
         );
     }
 
     #[test]
-    fn calculate_rtc_offset_years() {
+    fn rtc_datetime_offset_years() {
         assert_eq!(
-            calculate_rtc_offset(
+            RtcDateTimeOffset::new(
                 Year(RangedU8::new_static::<42>()),
                 Month::January,
-                Day(RangedU8::new_static::<1>()),
-                Hour(RangedU8::new_static::<0>()),
-                Minute(RangedU8::new_static::<0>()),
-                Second(RangedU8::new_static::<0>())
+                Day(RangedU8::MIN),
+                Hour(RangedU8::MIN),
+                Minute(RangedU8::MIN),
+                Second(RangedU8::MIN)
             ),
-            1_325_462_400
+            RtcDateTimeOffset(RangedU32::new_static::<1_325_462_400>())
         );
     }
 }
