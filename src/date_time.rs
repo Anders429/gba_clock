@@ -235,6 +235,7 @@ pub(crate) fn calculate_rtc_offset(
 /// The current number of seconds stored in the RTC.
 ///
 /// In other words, this is the number of seconds since midnight according to the RTC's clock.
+#[derive(Debug, Eq, PartialEq)] // TODO: Better debug implementation.
 pub(crate) struct RtcTimeOffset(pub(crate) RangedU32<0, 86_399>);
 
 impl RtcTimeOffset {
@@ -268,11 +269,75 @@ mod tests {
         Day,
         Hour,
         Minute,
+        RtcTimeOffset,
         Second,
         Year,
     };
-    use deranged::RangedU8;
+    use deranged::{
+        RangedU32,
+        RangedU8,
+    };
     use time::Month;
+
+    #[test]
+    fn rtc_time_offset_min() {
+        assert_eq!(
+            RtcTimeOffset::new(
+                Hour(RangedU8::MIN),
+                Minute(RangedU8::MIN),
+                Second(RangedU8::MIN)
+            ),
+            RtcTimeOffset(RangedU32::MIN)
+        );
+    }
+
+    #[test]
+    fn rtc_time_offset_max() {
+        assert_eq!(
+            RtcTimeOffset::new(
+                Hour(RangedU8::MAX),
+                Minute(RangedU8::MAX),
+                Second(RangedU8::MAX)
+            ),
+            RtcTimeOffset(RangedU32::MAX)
+        );
+    }
+
+    #[test]
+    fn rtc_time_offset_hours() {
+        assert_eq!(
+            RtcTimeOffset::new(
+                Hour(RangedU8::new_static::<13>()),
+                Minute(RangedU8::MIN),
+                Second(RangedU8::MIN)
+            ),
+            RtcTimeOffset(RangedU32::new_static::<46800>())
+        );
+    }
+
+    #[test]
+    fn rtc_time_offset_minutes() {
+        assert_eq!(
+            RtcTimeOffset::new(
+                Hour(RangedU8::MIN),
+                Minute(RangedU8::new_static::<42>()),
+                Second(RangedU8::MIN)
+            ),
+            RtcTimeOffset(RangedU32::new_static::<2520>())
+        );
+    }
+
+    #[test]
+    fn rtc_time_offset_seconds() {
+        assert_eq!(
+            RtcTimeOffset::new(
+                Hour(RangedU8::MIN),
+                Minute(RangedU8::MIN),
+                Second(RangedU8::new_static::<42>())
+            ),
+            RtcTimeOffset(RangedU32::new_static::<42>())
+        );
+    }
 
     #[test]
     fn calculate_rtc_offset_min() {
