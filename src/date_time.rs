@@ -232,9 +232,13 @@ pub(crate) fn calculate_rtc_offset(
     second.0.get() as u32 + minute.0.get() as u32 * 60 + hour.0.get() as u32 * 3600 + days * 86400
 }
 
+/// The current number of seconds stored in the RTC.
+///
+/// In other words, this is the number of seconds since midnight according to the RTC's clock.
 pub(crate) struct RtcTimeOffset(pub(crate) RangedU32<0, 86_399>);
 
 impl RtcTimeOffset {
+    /// Create a new offset using the hour, minute, and second read from the RTC.
     pub(crate) fn new(hour: Hour, minute: Minute, second: Second) -> RtcTimeOffset {
         RtcTimeOffset(unsafe {
             RangedU32::new_unchecked(
