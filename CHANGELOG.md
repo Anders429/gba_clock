@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.2.0 - 2023-10-11
 ### Added
 - Implemented `Display` for `Error`.
 - `Clock` methods for reading and writing time by itself. 
