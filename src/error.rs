@@ -30,13 +30,13 @@ pub enum Error {
     PowerFailure,
     TestMode,
     AmPmBitPresent,
-    InvalidStatus,
-    InvalidMonth,
-    InvalidDay,
-    InvalidHour,
-    InvalidMinute,
-    InvalidSecond,
-    InvalidBinaryCodedDecimal,
+    InvalidStatus(u8),
+    InvalidMonth(u8),
+    InvalidDay(u8),
+    InvalidHour(u8),
+    InvalidMinute(u8),
+    InvalidSecond(u8),
+    InvalidBinaryCodedDecimal(u8),
     Overflow,
 }
 
@@ -46,14 +46,28 @@ impl Display for Error {
             Self::PowerFailure => formatter.write_str("RTC power failure"),
             Self::TestMode => formatter.write_str("RTC is in test mode"),
             Self::AmPmBitPresent => formatter.write_str("RTC is not in 24-hour mode"),
-            Self::InvalidStatus => formatter.write_str("RTC returned an invalid status"),
-            Self::InvalidMonth => formatter.write_str("RTC returned an invalid month"),
-            Self::InvalidDay => formatter.write_str("RTC returned an invalid day"),
-            Self::InvalidHour => formatter.write_str("RTC returned an invalid hour"),
-            Self::InvalidMinute => formatter.write_str("RTC returned an invalid minute"),
-            Self::InvalidSecond => formatter.write_str("RTC returned an invalid second"),
-            Self::InvalidBinaryCodedDecimal => {
-                formatter.write_str("RTC returned a value that was not a binary coded decimal")
+            Self::InvalidStatus(value) => {
+                write!(formatter, "RTC returned an invalid status: {}", value)
+            }
+            Self::InvalidMonth(value) => {
+                write!(formatter, "RTC returned an invalid month: {}", value)
+            }
+            Self::InvalidDay(value) => write!(formatter, "RTC returned an invalid day: {}", value),
+            Self::InvalidHour(value) => {
+                write!(formatter, "RTC returned an invalid hour: {}", value)
+            }
+            Self::InvalidMinute(value) => {
+                write!(formatter, "RTC returned an invalid minute: {}", value)
+            }
+            Self::InvalidSecond(value) => {
+                write!(formatter, "RTC returned an invalid second: {}", value)
+            }
+            Self::InvalidBinaryCodedDecimal(value) => {
+                write!(
+                    formatter,
+                    "RTC returned a value that was not a binary coded decimal: {}",
+                    value
+                )
             }
             Self::Overflow => formatter.write_str("the stored time is too large to be represented"),
         }
@@ -70,14 +84,26 @@ impl Serialize for Error {
             Self::PowerFailure => serializer.serialize_unit_variant("Error", 0, "PowerFailure"),
             Self::TestMode => serializer.serialize_unit_variant("Error", 1, "TestMode"),
             Self::AmPmBitPresent => serializer.serialize_unit_variant("Error", 2, "AmPmBitPresent"),
-            Self::InvalidStatus => serializer.serialize_unit_variant("Error", 3, "InvalidStatus"),
-            Self::InvalidMonth => serializer.serialize_unit_variant("Error", 4, "InvalidMonth"),
-            Self::InvalidDay => serializer.serialize_unit_variant("Error", 5, "InvalidDay"),
-            Self::InvalidHour => serializer.serialize_unit_variant("Error", 6, "InvalidHour"),
-            Self::InvalidMinute => serializer.serialize_unit_variant("Error", 7, "InvalidMinute"),
-            Self::InvalidSecond => serializer.serialize_unit_variant("Error", 8, "InvalidSecond"),
-            Self::InvalidBinaryCodedDecimal => {
-                serializer.serialize_unit_variant("Error", 9, "InvalidBinaryCodedDecimal")
+            Self::InvalidStatus(value) => {
+                serializer.serialize_newtype_variant("Error", 3, "InvalidStatus", value)
+            }
+            Self::InvalidMonth(value) => {
+                serializer.serialize_newtype_variant("Error", 4, "InvalidMonth", value)
+            }
+            Self::InvalidDay(value) => {
+                serializer.serialize_newtype_variant("Error", 5, "InvalidDay", value)
+            }
+            Self::InvalidHour(value) => {
+                serializer.serialize_newtype_variant("Error", 6, "InvalidHour", value)
+            }
+            Self::InvalidMinute(value) => {
+                serializer.serialize_newtype_variant("Error", 7, "InvalidMinute", value)
+            }
+            Self::InvalidSecond(value) => {
+                serializer.serialize_newtype_variant("Error", 8, "InvalidSecond", value)
+            }
+            Self::InvalidBinaryCodedDecimal(value) => {
+                serializer.serialize_newtype_variant("Error", 9, "InvalidBinaryCodedDecimal", value)
             }
             Self::Overflow => serializer.serialize_unit_variant("Error", 10, "Overflow"),
         }
@@ -201,19 +227,33 @@ impl<'de> Deserialize<'de> for Error {
                 A: EnumAccess<'de>,
             {
                 let (variant, access) = data.variant()?;
-                access.unit_variant()?;
+
                 Ok(match variant {
-                    Variant::PowerFailure => Error::PowerFailure,
-                    Variant::TestMode => Error::TestMode,
-                    Variant::AmPmBitPresent => Error::AmPmBitPresent,
-                    Variant::InvalidStatus => Error::InvalidStatus,
-                    Variant::InvalidMonth => Error::InvalidMonth,
-                    Variant::InvalidDay => Error::InvalidDay,
-                    Variant::InvalidHour => Error::InvalidHour,
-                    Variant::InvalidMinute => Error::InvalidMinute,
-                    Variant::InvalidSecond => Error::InvalidSecond,
-                    Variant::InvalidBinaryCodedDecimal => Error::InvalidBinaryCodedDecimal,
-                    Variant::Overflow => Error::Overflow,
+                    Variant::PowerFailure => {
+                        access.unit_variant()?;
+                        Error::PowerFailure
+                    }
+                    Variant::TestMode => {
+                        access.unit_variant()?;
+                        Error::TestMode
+                    }
+                    Variant::AmPmBitPresent => {
+                        access.unit_variant()?;
+                        Error::AmPmBitPresent
+                    }
+                    Variant::InvalidStatus => Error::InvalidStatus(access.newtype_variant()?),
+                    Variant::InvalidMonth => Error::InvalidMonth(access.newtype_variant()?),
+                    Variant::InvalidDay => Error::InvalidDay(access.newtype_variant()?),
+                    Variant::InvalidHour => Error::InvalidHour(access.newtype_variant()?),
+                    Variant::InvalidMinute => Error::InvalidMinute(access.newtype_variant()?),
+                    Variant::InvalidSecond => Error::InvalidSecond(access.newtype_variant()?),
+                    Variant::InvalidBinaryCodedDecimal => {
+                        Error::InvalidBinaryCodedDecimal(access.newtype_variant()?)
+                    }
+                    Variant::Overflow => {
+                        access.unit_variant()?;
+                        Error::Overflow
+                    }
                 })
             }
         }

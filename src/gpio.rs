@@ -185,7 +185,7 @@ impl TryFrom<u8> for Status {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Check for unused bits.
         if value & 0b0001_0101 != 0 {
-            Err(Error::InvalidStatus)
+            Err(Error::InvalidStatus(value))
         } else {
             Ok(Status(value))
         }

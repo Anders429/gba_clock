@@ -45,7 +45,7 @@ impl TryFrom<u8> for Bcd {
         if value < 0xa0 && (value & 0x0f < 0x0a) {
             Ok(Self(value))
         } else {
-            Err(Error::InvalidBinaryCodedDecimal)
+            Err(Error::InvalidBinaryCodedDecimal(value))
         }
     }
 }
@@ -61,12 +61,9 @@ impl From<Bcd> for Year {
 impl TryFrom<Bcd> for Month {
     type Error = Error;
 
-    fn try_from(value: Bcd) -> Result<Self, Self::Error> {
-        value
-            .to_binary()
-            .get()
-            .try_into()
-            .map_err(|_| Error::InvalidMonth)
+    fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
+        let value = bcd.to_binary().get();
+        value.try_into().map_err(|_| Error::InvalidMonth(value))
     }
 }
 
@@ -75,7 +72,11 @@ impl TryFrom<Bcd> for Day {
     type Error = Error;
 
     fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        Ok(Self(bcd.to_binary().narrow().ok_or(Error::InvalidDay)?))
+        Ok(Self(
+            bcd.to_binary()
+                .narrow()
+                .ok_or(Error::InvalidDay(bcd.to_binary().get()))?,
+        ))
     }
 }
 
@@ -88,7 +89,11 @@ impl TryFrom<Bcd> for Hour {
         if bcd.0 & 0b1000_0000 != 0 {
             return Err(Error::AmPmBitPresent);
         }
-        Ok(Self(bcd.to_binary().narrow().ok_or(Error::InvalidHour)?))
+        Ok(Self(
+            bcd.to_binary()
+                .narrow()
+                .ok_or(Error::InvalidHour(bcd.to_binary().get()))?,
+        ))
     }
 }
 
@@ -97,7 +102,11 @@ impl TryFrom<Bcd> for Minute {
     type Error = Error;
 
     fn try_from(bcd: Bcd) -> Result<Self, Self::Error> {
-        Ok(Self(bcd.to_binary().narrow().ok_or(Error::InvalidMinute)?))
+        Ok(Self(
+            bcd.to_binary()
+                .narrow()
+                .ok_or(Error::InvalidMinute(bcd.to_binary().get()))?,
+        ))
     }
 }
 
@@ -110,7 +119,11 @@ impl TryFrom<Bcd> for Second {
         if bcd.0 & 0b1000_0000 != 0 {
             return Err(Error::TestMode);
         }
-        Ok(Self(bcd.to_binary().narrow().ok_or(Error::InvalidSecond)?))
+        Ok(Self(
+            bcd.to_binary()
+                .narrow()
+                .ok_or(Error::InvalidSecond(bcd.to_binary().get()))?,
+        ))
     }
 }
 
@@ -166,12 +179,12 @@ mod tests {
 
     #[test]
     fn from_byte_upper_out_of_bounds() {
-        assert_err_eq!(Bcd::try_from(0xc5), Error::InvalidBinaryCodedDecimal);
+        assert_err_eq!(Bcd::try_from(0xc5), Error::InvalidBinaryCodedDecimal(0xc5));
     }
 
     #[test]
     fn from_byte_lower_out_of_bounds() {
-        assert_err_eq!(Bcd::try_from(0x5c), Error::InvalidBinaryCodedDecimal);
+        assert_err_eq!(Bcd::try_from(0x5c), Error::InvalidBinaryCodedDecimal(0x5c));
     }
 
     #[test]
@@ -196,12 +209,12 @@ mod tests {
 
     #[test]
     fn try_into_month_fails_zero() {
-        assert_err_eq!(Month::try_from(Bcd(0x00)), Error::InvalidMonth);
+        assert_err_eq!(Month::try_from(Bcd(0x00)), Error::InvalidMonth(0));
     }
 
     #[test]
     fn try_into_month_fails_too_high() {
-        assert_err_eq!(Month::try_from(Bcd(0x13)), Error::InvalidMonth);
+        assert_err_eq!(Month::try_from(Bcd(0x13)), Error::InvalidMonth(13));
     }
 
     #[test]
@@ -216,12 +229,12 @@ mod tests {
 
     #[test]
     fn try_into_day_fails_zero() {
-        assert_err_eq!(Day::try_from(Bcd(0x00)), Error::InvalidDay);
+        assert_err_eq!(Day::try_from(Bcd(0x00)), Error::InvalidDay(0));
     }
 
     #[test]
     fn try_into_day_fails_too_high() {
-        assert_err_eq!(Day::try_from(Bcd(0x32)), Error::InvalidDay);
+        assert_err_eq!(Day::try_from(Bcd(0x32)), Error::InvalidDay(32));
     }
 
     #[test]
@@ -239,7 +252,7 @@ mod tests {
 
     #[test]
     fn try_into_hour_fails_too_high() {
-        assert_err_eq!(Hour::try_from(Bcd(0x24)), Error::InvalidHour);
+        assert_err_eq!(Hour::try_from(Bcd(0x24)), Error::InvalidHour(24));
     }
 
     #[test]
@@ -265,7 +278,7 @@ mod tests {
 
     #[test]
     fn try_into_minute_fails_too_high() {
-        assert_err_eq!(Minute::try_from(Bcd(0x60)), Error::InvalidMinute);
+        assert_err_eq!(Minute::try_from(Bcd(0x60)), Error::InvalidMinute(60));
     }
 
     #[test]
@@ -286,7 +299,7 @@ mod tests {
 
     #[test]
     fn try_into_second_fails_too_high() {
-        assert_err_eq!(Second::try_from(Bcd(0x60)), Error::InvalidSecond);
+        assert_err_eq!(Second::try_from(Bcd(0x60)), Error::InvalidSecond(60));
     }
 
     #[test]
