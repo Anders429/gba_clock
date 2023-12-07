@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+### Changed
+- `Error` now includes invalid values for `InvalidStatus`, `InvalidMonth`, `InvalidDay`, `InvalidHour`, `InvalidMinute`, `InvalidSecond`, and `InvalidBinaryCodedDecimal` variants.
 ### Fixed
 - Deserializing a `Clock` now correctly enables the RTC.
 
