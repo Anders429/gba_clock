@@ -579,6 +579,12 @@ impl<'de> Deserialize<'de> for Clock {
         }
 
         const FIELDS: &[&str] = &["base_date", "rtc_offset"];
-        deserializer.deserialize_struct("Clock", FIELDS, ClockVisitor)
+        let result = deserializer.deserialize_struct("Clock", FIELDS, ClockVisitor);
+        if result.is_ok() {
+            // Enable operations with the RTC via General Purpose I/O (GPIO).
+            enable();
+            set_status(Status::HOUR_24);
+        }
+        result
     }
 }
