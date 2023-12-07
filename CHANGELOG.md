@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+### Fixed
+- Deserializing a `Clock` now correctly enables the RTC.
 
 ## 0.2.0 - 2023-10-11
 ### Added
