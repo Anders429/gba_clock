@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.3.0 - 2023-12-06
 ### Changed
 - `Error` now includes invalid values for `InvalidStatus`, `InvalidMonth`, `InvalidDay`, `InvalidHour`, `InvalidMinute`, `InvalidSecond`, and `InvalidBinaryCodedDecimal` variants.
 ### Fixed
