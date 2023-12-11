@@ -371,6 +371,19 @@ impl<'de> Deserialize<'de> for Clock {
             // Enable operations with the RTC via General Purpose I/O (GPIO).
             enable();
             set_status(Status::HOUR_24);
+            // If the power bit is active, the clock is unreadable.
+            let status = try_read_status().map_err(|error| {
+                de::Error::custom(format_args!("could not read RTC status: {}", error))
+            })?;
+            if status.contains(&Status::POWER) {
+                return Err(de::Error::custom(
+                    "RTC power bit is set, RTC needs to be reset",
+                ));
+            }
+            // If we are in test mode, the clock is unreadable.
+            if is_test_mode() {
+                return Err(de::Error::custom("RTC is in test mode and must be reset"));
+            }
         }
         result
     }

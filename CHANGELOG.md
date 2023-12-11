@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.3.1 - 2023-12-11
+### Fixed
+- Deserializing a `Clock` now checks for valid status and test mode, returning an error if the RTC is in an unusable state.
+
 ## 0.3.0 - 2023-12-06
 ### Changed
 - `Error` now includes invalid values for `InvalidStatus`, `InvalidMonth`, `InvalidDay`, `InvalidHour`, `InvalidMinute`, `InvalidSecond`, and `InvalidBinaryCodedDecimal` variants.
