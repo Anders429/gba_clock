@@ -28,6 +28,10 @@
 //! ```
 
 #![no_std]
+#![cfg_attr(test, no_main)]
+#![cfg_attr(test, feature(custom_test_frameworks))]
+#![cfg_attr(test, test_runner(gba_test::runner))]
+#![cfg_attr(test, reexport_test_harness_main = "test_harness")]
 
 mod bcd;
 mod date_time;
@@ -387,4 +391,10 @@ impl<'de> Deserialize<'de> for Clock {
         }
         result
     }
+}
+
+#[cfg(test)]
+#[no_mangle]
+pub fn main() {
+    test_harness()
 }
