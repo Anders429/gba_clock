@@ -25,6 +25,7 @@ time = {version = "0.3.27", default-features = false}
 [dev-dependencies]
 claims = "0.7.1"
 gba_test = "0.1.2"
+time-macros = "0.2.18"
 
 [features]
 serde = ["dep:serde", "deranged/serde", "time/serde"]
