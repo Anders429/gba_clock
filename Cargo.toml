@@ -24,7 +24,8 @@ time = {version = "0.3.27", default-features = false}
 
 [dev-dependencies]
 claims = "0.7.1"
-gba_test = "0.1.2"
+gba_test = {version = "0.1.2", features = ["log"]}
+mgba_log = "0.2.1"
 time-macros = "0.2.18"
 
 [features]

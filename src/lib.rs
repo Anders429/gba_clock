@@ -396,6 +396,7 @@ impl<'de> Deserialize<'de> for Clock {
 #[cfg(test)]
 #[no_mangle]
 pub fn main() {
+    let _ = mgba_log::init();
     test_harness()
 }
 
