@@ -10,6 +10,13 @@ description = "A real-time clock library for the GBA."
 categories = ["date-and-time", "game-development", "no-std", "no-std::no-alloc"]
 keywords = ["gba", "rtc", "clock", "time", "date"]
 
+[profile.dev]
+opt-level = 3
+debug = true
+
+[profile.release]
+lto = true
+
 [dependencies]
 deranged = {version = "0.3.8", default-features = false}
 serde = {version = "1.0.188", default-features = false, optional = true}
@@ -17,6 +24,9 @@ time = {version = "0.3.27", default-features = false}
 
 [dev-dependencies]
 claims = "0.7.1"
+gba_test = {version = "0.1.2", features = ["log"]}
+mgba_log = "0.2.1"
+time-macros = "0.2.18"
 
 [features]
 serde = ["dep:serde", "deranged/serde", "time/serde"]

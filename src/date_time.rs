@@ -279,6 +279,7 @@ mod tests {
         RangedU32,
         RangedU8,
     };
+    use gba_test::test;
     use time::Month;
 
     #[test]

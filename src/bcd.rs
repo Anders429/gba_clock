@@ -145,6 +145,7 @@ mod tests {
         assert_ok_eq,
     };
     use deranged::RangedU8;
+    use gba_test::test;
     use time::Month;
 
     #[test]

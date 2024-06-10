@@ -28,6 +28,10 @@
 //! ```
 
 #![no_std]
+#![cfg_attr(test, no_main)]
+#![cfg_attr(test, feature(custom_test_frameworks))]
+#![cfg_attr(test, test_runner(gba_test::runner))]
+#![cfg_attr(test, reexport_test_harness_main = "test_harness")]
 
 mod bcd;
 mod date_time;
@@ -386,5 +390,62 @@ impl<'de> Deserialize<'de> for Clock {
             }
         }
         result
+    }
+}
+
+#[cfg(test)]
+#[no_mangle]
+pub fn main() {
+    let _ = mgba_log::init();
+    test_harness()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Clock;
+    use claims::{
+        assert_ok,
+        assert_ok_eq,
+    };
+    use gba_test::test;
+    use time_macros::{
+        datetime,
+        time,
+    };
+
+    #[test]
+    fn read_datetime() {
+        let datetime = datetime!(2012-12-21 5:23);
+        let clock = assert_ok!(Clock::new(datetime));
+
+        assert_ok_eq!(clock.read_datetime(), datetime);
+    }
+
+    #[test]
+    fn write_datetime() {
+        let mut clock = assert_ok!(Clock::new(datetime!(2000-01-01 0:00)));
+        let datetime = datetime!(2012-12-21 5:23);
+
+        assert_ok!(clock.write_datetime(datetime));
+
+        assert_ok_eq!(clock.read_datetime(), datetime);
+    }
+
+    #[test]
+    fn read_time() {
+        let datetime = datetime!(2012-12-21 5:23);
+        let clock = assert_ok!(Clock::new(datetime));
+
+        assert_ok_eq!(clock.read_time(), datetime.time());
+    }
+
+    #[test]
+    fn write_time() {
+        let mut clock = assert_ok!(Clock::new(datetime!(2012-12-21 5:23)));
+        let time = time!(22:22);
+
+        assert_ok!(clock.write_time(time));
+
+        assert_ok_eq!(clock.read_time(), time);
     }
 }
