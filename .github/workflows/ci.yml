@@ -9,6 +9,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  XDG_CONFIG_HOME: /home/runner/work/gba_clock/gba_clock/.github
 
 jobs:
   test:
@@ -25,7 +26,7 @@ jobs:
     - run: arm-none-eabi-objcopy -O binary ${{ env.ROM_PATH }} test.gba
     - run: cargo install gbafix
     - run: gbafix test.gba
-    - uses: felixjones/github-mgba-rom-test@v1
+    - uses: Anders429/github-mgba-rom-test@config
       with:
         swi-call: 0x27
         read-register: 'r0'
