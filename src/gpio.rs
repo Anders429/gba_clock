@@ -65,6 +65,7 @@ enum RwMode {
 ///
 /// While this is a 16-bit value, only the lowest 3 bits are used. This is because the RTC only
 /// uses 3 of the 4 possible bits for interacting with the GPIO.
+#[derive(Debug, PartialEq, Eq)]
 struct Data(u16);
 
 impl Data {
@@ -167,7 +168,7 @@ fn write_byte(byte: u8) {
 /// This is an 8-bit representation of the various modes and states stored in the RTC itself. All
 /// bits except `POWER` are writable. Bits 0, 2, and 4 are unused and therefore should never be
 /// set.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Status(u8);
 
 impl Status {
@@ -411,5 +412,206 @@ pub(crate) fn set_status(status: Status) {
     // Restore the previous interrupt enable value.
     unsafe {
         IME.write_volatile(previous_ime);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Data,
+        Status,
+    };
+    use crate::Error;
+    use claims::{
+        assert_err_eq,
+        assert_ok_eq,
+    };
+    use gba_test::test;
+
+    #[test]
+    fn data_bit_or_empty() {
+        assert_eq!(Data(0) | Data(0), Data(0));
+    }
+
+    #[test]
+    fn data_bit_or_sck_sio() {
+        assert_eq!(Data::SCK | Data::SIO, Data(0b0000_0000_0000_0011));
+    }
+
+    #[test]
+    fn data_bit_or_sck_cs() {
+        assert_eq!(Data::SCK | Data::CS, Data(0b0000_0000_0000_0101));
+    }
+
+    #[test]
+    fn data_bit_or_sio_cs() {
+        assert_eq!(Data::SIO | Data::CS, Data(0b0000_0000_0000_0110));
+    }
+
+    #[test]
+    fn data_bit_or_all() {
+        assert_eq!(
+            Data::SCK | Data::SIO | Data::CS,
+            Data(0b0000_0000_0000_0111)
+        );
+    }
+
+    #[test]
+    fn data_bit_or_u8_empty() {
+        assert_eq!(Data(0) | 0, Data(0));
+    }
+
+    #[test]
+    fn data_bit_or_u8_sck_sio() {
+        assert_eq!(Data::SCK | 2, Data(0b0000_0000_0000_0011));
+    }
+
+    #[test]
+    fn data_bit_or_u8_sck_cs() {
+        assert_eq!(Data::SCK | 4, Data(0b0000_0000_0000_0101));
+    }
+
+    #[test]
+    fn data_bit_or_u8_sio_cs() {
+        assert_eq!(Data::SIO | 4, Data(0b0000_0000_0000_0110));
+    }
+
+    #[test]
+    fn data_bit_or_u8_all() {
+        assert_eq!(Data::SCK | 6, Data(0b0000_0000_0000_0111));
+    }
+
+    #[test]
+    fn u8_bit_or_data_empty() {
+        assert_eq!(0 | Data(0), Data(0));
+    }
+
+    #[test]
+    fn u8_bit_or_data_sck_sio() {
+        assert_eq!(1 | Data::SIO, Data(0b0000_0000_0000_0011));
+    }
+
+    #[test]
+    fn u8_bit_or_data_sck_cs() {
+        assert_eq!(1 | Data::CS, Data(0b0000_0000_0000_0101));
+    }
+
+    #[test]
+    fn u8_bit_or_data_sio_cs() {
+        assert_eq!(2 | Data::CS, Data(0b0000_0000_0000_0110));
+    }
+
+    #[test]
+    fn u8_bit_or_data_all() {
+        assert_eq!(3 | Data::CS, Data(0b0000_0000_0000_0111));
+    }
+
+    #[test]
+    fn data_bit_and_empty() {
+        assert_eq!(Data(0) & Data(0), Data(0));
+    }
+
+    #[test]
+    fn data_bit_and_empty_sck() {
+        assert_eq!(Data(0) & Data::SCK, Data(0));
+    }
+
+    #[test]
+    fn data_bit_and_empty_sio() {
+        assert_eq!(Data(0) & Data::SIO, Data(0));
+    }
+
+    #[test]
+    fn data_bit_and_empty_cs() {
+        assert_eq!(Data(0) & Data::CS, Data(0));
+    }
+
+    #[test]
+    fn data_bit_and_all_sck() {
+        assert_eq!(Data(7) & Data::SCK, Data::SCK);
+    }
+
+    #[test]
+    fn data_bit_and_all_sio() {
+        assert_eq!(Data(7) & Data::SIO, Data::SIO);
+    }
+
+    #[test]
+    fn data_bit_and_all_cs() {
+        assert_eq!(Data(7) & Data::CS, Data::CS);
+    }
+
+    #[test]
+    fn data_bit_and_all() {
+        assert_eq!(Data(7) & Data(7), Data(7));
+    }
+
+    #[test]
+    fn status_contains_power() {
+        assert!(Status::POWER.contains(&Status::POWER));
+    }
+
+    #[test]
+    fn status_contains_no_power() {
+        assert!(!Status(0).contains(&Status::POWER));
+    }
+
+    #[test]
+    fn status_contains_hour_24() {
+        assert!(Status::HOUR_24.contains(&Status::HOUR_24));
+    }
+
+    #[test]
+    fn status_contains_no_hour_24() {
+        assert!(!Status(0).contains(&Status::HOUR_24));
+    }
+
+    #[test]
+    fn status_from_empty() {
+        assert_ok_eq!(Status::try_from(0), Status(0));
+    }
+
+    #[test]
+    fn status_contains_invalid_bit_0() {
+        assert_err_eq!(
+            Status::try_from(0b0000_0001),
+            Error::InvalidStatus(0b0000_0001)
+        );
+    }
+
+    #[test]
+    fn status_contains_invalid_bit_2() {
+        assert_err_eq!(
+            Status::try_from(0b0000_0100),
+            Error::InvalidStatus(0b0000_0100)
+        );
+    }
+
+    #[test]
+    fn status_contains_invalid_bit_4() {
+        assert_err_eq!(
+            Status::try_from(0b0001_0000),
+            Error::InvalidStatus(0b0001_0000)
+        );
+    }
+
+    #[test]
+    fn status_from_all_bits_set_is_invalid() {
+        assert_err_eq!(Status::try_from(0xff), Error::InvalidStatus(0xff));
+    }
+
+    #[test]
+    fn status_from_power() {
+        assert_ok_eq!(Status::try_from(0b1000_0000), Status::POWER);
+    }
+
+    #[test]
+    fn status_from_hour_24() {
+        assert_ok_eq!(Status::try_from(0b0100_0000), Status::HOUR_24);
+    }
+
+    #[test]
+    fn status_from_all_valid_bits() {
+        assert_ok_eq!(Status::try_from(0b1110_1010), Status(0b1110_1010));
     }
 }
