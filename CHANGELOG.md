@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+### Added
+- `Clock::read_date()` method for reading the current date by itself.
+- `Clock::write_date()` method for changing only the date.
 
 ## 0.3.1 - 2023-12-11
 ### Fixed

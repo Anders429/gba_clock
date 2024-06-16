@@ -172,6 +172,53 @@ impl Clock {
         Ok(())
     }
 
+    /// Reads the currently stored date.
+    pub fn read_date(&self) -> Result<Date, Error> {
+        let rtc_offset = try_read_datetime_offset()?;
+
+        let duration = if rtc_offset.0 >= self.rtc_offset.0 {
+            RtcDateTimeOffset(unsafe { rtc_offset.0.unchecked_sub(self.rtc_offset.0.get()) }).into()
+        } else {
+            RtcDateTimeOffset(unsafe {
+                RangedU32::MAX
+                    .unchecked_sub(self.rtc_offset.0.get())
+                    .unchecked_add(rtc_offset.0.get())
+                    .unchecked_add(1)
+            })
+            .into()
+        };
+
+        self.base_date.checked_add(duration).ok_or(Error::Overflow)
+    }
+
+    /// Writes a new date.
+    ///
+    /// This preserves the stored time.
+    ///
+    /// Note that this does not actually change the stored date in the RTC itself. While RTC values
+    /// are writable on real hardware, they are often not writable in GBA emulators. Therefore, the
+    /// date and time are stored as being offset from the current RTC date and time to maintain
+    /// maximum compatibility.
+    pub fn write_date(&mut self, date: Date) -> Result<(), Error> {
+        let rtc_offset = try_read_datetime_offset()?;
+        self.base_date = date;
+        // Calculate the current time offset.
+        let current_time_offset: RtcTimeOffset = if rtc_offset.0 >= self.rtc_offset.0 {
+            RtcDateTimeOffset(unsafe { rtc_offset.0.unchecked_sub(self.rtc_offset.0.get()) }).into()
+        } else {
+            RtcDateTimeOffset(unsafe {
+                RangedU32::MAX
+                    .unchecked_sub(self.rtc_offset.0.get())
+                    .unchecked_add(rtc_offset.0.get())
+                    .unchecked_add(1)
+            })
+            .into()
+        };
+        self.rtc_offset =
+            RtcDateTimeOffset(unsafe { rtc_offset.0.unchecked_sub(current_time_offset.0.get()) });
+        Ok(())
+    }
+
     /// Reads the currently stored time.
     ///
     /// This is always faster than using [`Clock::read_datetime()`], as it only requires reading
@@ -409,6 +456,7 @@ mod tests {
     };
     use gba_test::test;
     use time_macros::{
+        date,
         datetime,
         time,
     };
@@ -432,6 +480,23 @@ mod tests {
     }
 
     #[test]
+    fn read_date() {
+        let datetime = datetime!(2012-12-21 5:23);
+        let clock = assert_ok!(Clock::new(datetime));
+
+        assert_ok_eq!(clock.read_date(), datetime.date());
+    }
+
+    #[test]
+    fn write_date() {
+        let mut clock = assert_ok!(Clock::new(datetime!(2000-01-01 0:00)));
+
+        assert_ok!(clock.write_date(date!(2012 - 12 - 21)));
+
+        assert_ok_eq!(clock.read_datetime(), datetime!(2012-12-21 0:00));
+    }
+
+    #[test]
     fn read_time() {
         let datetime = datetime!(2012-12-21 5:23);
         let clock = assert_ok!(Clock::new(datetime));
@@ -442,10 +507,9 @@ mod tests {
     #[test]
     fn write_time() {
         let mut clock = assert_ok!(Clock::new(datetime!(2012-12-21 5:23)));
-        let time = time!(22:22);
 
-        assert_ok!(clock.write_time(time));
+        assert_ok!(clock.write_time(time!(22:22)));
 
-        assert_ok_eq!(clock.read_time(), time);
+        assert_ok_eq!(clock.read_datetime(), datetime!(2012-12-21 22:22));
     }
 }
