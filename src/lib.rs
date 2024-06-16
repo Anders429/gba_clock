@@ -449,8 +449,12 @@ pub fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::Clock;
+    use super::{
+        Clock,
+        Error,
+    };
     use claims::{
+        assert_err_eq,
         assert_ok,
         assert_ok_eq,
     };
@@ -460,6 +464,18 @@ mod tests {
         datetime,
         time,
     };
+
+    #[test]
+    #[cfg_attr(
+        not(no_rtc),
+        ignore = "This test requires the RTC to be disabled. Ensure no RTC is configured and pass `--cfg no_rtc` to enable."
+    )]
+    fn new_clock_invalid_offset() {
+        assert_err_eq!(
+            Clock::new(datetime!(2012-12-21 5:23)),
+            Error::InvalidMonth(0)
+        );
+    }
 
     #[test]
     #[cfg_attr(
