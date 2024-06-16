@@ -462,6 +462,10 @@ mod tests {
     };
 
     #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn read_datetime() {
         let datetime = datetime!(2012-12-21 5:23);
         let clock = assert_ok!(Clock::new(datetime));
@@ -470,6 +474,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn write_datetime() {
         let mut clock = assert_ok!(Clock::new(datetime!(2000-01-01 0:00)));
         let datetime = datetime!(2012-12-21 5:23);
@@ -480,6 +488,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn read_date() {
         let datetime = datetime!(2012-12-21 5:23);
         let clock = assert_ok!(Clock::new(datetime));
@@ -488,6 +500,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn write_date() {
         let mut clock = assert_ok!(Clock::new(datetime!(2000-01-01 0:00)));
 
@@ -497,6 +513,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn read_time() {
         let datetime = datetime!(2012-12-21 5:23);
         let clock = assert_ok!(Clock::new(datetime));
@@ -505,6 +525,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn write_time() {
         let mut clock = assert_ok!(Clock::new(datetime!(2012-12-21 5:23)));
 

@@ -30,3 +30,6 @@ time-macros = "0.2.18"
 
 [features]
 serde = ["dep:serde", "deranged/serde", "time/serde"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(rtc)", "cfg(no_rtc)"]}
