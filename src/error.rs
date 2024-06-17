@@ -38,6 +38,7 @@ pub enum Error {
     InvalidSecond(u8),
     InvalidBinaryCodedDecimal(u8),
     Overflow,
+    NotEnabled,
 }
 
 impl Display for Error {
@@ -70,6 +71,7 @@ impl Display for Error {
                 )
             }
             Self::Overflow => formatter.write_str("the stored time is too large to be represented"),
+            Self::NotEnabled => formatter.write_str("the RTC GPIO port is not enabled"),
         }
     }
 }
@@ -106,6 +108,7 @@ impl Serialize for Error {
                 serializer.serialize_newtype_variant("Error", 9, "InvalidBinaryCodedDecimal", value)
             }
             Self::Overflow => serializer.serialize_unit_variant("Error", 10, "Overflow"),
+            Self::NotEnabled => serializer.serialize_unit_variant("Error", 11, "NotEnabled"),
         }
     }
 }
@@ -128,6 +131,7 @@ impl<'de> Deserialize<'de> for Error {
             InvalidSecond,
             InvalidBinaryCodedDecimal,
             Overflow,
+            NotEnabled,
         }
 
         impl<'de> Deserialize<'de> for Variant {
@@ -141,7 +145,7 @@ impl<'de> Deserialize<'de> for Error {
                     type Value = Variant;
 
                     fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                        formatter.write_str("`PowerFailure`, `TestMode`, `AmPmBitPresent`, `InvalidStatus`, `InvalidMonth`, `InvalidDay`, `InvalidHour`, `InvalidMinute`, `InvalidSecond`, `InvalidBinaryCodedDecimal`, or `Overflow`")
+                        formatter.write_str("`PowerFailure`, `TestMode`, `AmPmBitPresent`, `InvalidStatus`, `InvalidMonth`, `InvalidDay`, `InvalidHour`, `InvalidMinute`, `InvalidSecond`, `InvalidBinaryCodedDecimal`, `Overflow`, or `NotEnabled`")
                     }
 
                     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
@@ -160,6 +164,7 @@ impl<'de> Deserialize<'de> for Error {
                             8 => Ok(Variant::InvalidSecond),
                             9 => Ok(Variant::InvalidBinaryCodedDecimal),
                             10 => Ok(Variant::Overflow),
+                            11 => Ok(Variant::NotEnabled),
                             _ => Err(de::Error::invalid_value(Unexpected::Unsigned(value), &self)),
                         }
                     }
@@ -180,6 +185,7 @@ impl<'de> Deserialize<'de> for Error {
                             "InvalidSecond" => Ok(Variant::InvalidSecond),
                             "InvalidBinaryCodedDecimal" => Ok(Variant::InvalidBinaryCodedDecimal),
                             "Overflow" => Ok(Variant::Overflow),
+                            "NotEnabled" => Ok(Variant::NotEnabled),
                             _ => Err(de::Error::unknown_variant(value, VARIANTS)),
                         }
                     }
@@ -200,6 +206,7 @@ impl<'de> Deserialize<'de> for Error {
                             b"InvalidSecond" => Ok(Variant::InvalidSecond),
                             b"InvalidBinaryCodedDecimal" => Ok(Variant::InvalidBinaryCodedDecimal),
                             b"Overflow" => Ok(Variant::Overflow),
+                            b"NotEnabled" => Ok(Variant::NotEnabled),
                             _ => {
                                 let utf8_value =
                                     str::from_utf8(value).unwrap_or("\u{fffd}\u{fffd}\u{fffd}");
@@ -254,6 +261,10 @@ impl<'de> Deserialize<'de> for Error {
                         access.unit_variant()?;
                         Error::Overflow
                     }
+                    Variant::NotEnabled => {
+                        access.unit_variant()?;
+                        Error::NotEnabled
+                    }
                 })
             }
         }
@@ -270,6 +281,7 @@ impl<'de> Deserialize<'de> for Error {
             "InvalidSecond",
             "InvalidBinaryCodedDecimal",
             "Overflow",
+            "NotEnabled",
         ];
         deserializer.deserialize_enum("Error", VARIANTS, ErrorVisitor)
     }

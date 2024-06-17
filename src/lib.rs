@@ -116,18 +116,18 @@ impl Clock {
         enable();
 
         // Initialize the RTC itself.
-        reset();
+        reset()?;
         // If the power bit is active, we need to reset.
         let status = try_read_status()?;
         if status.contains(&Status::POWER) {
-            reset();
+            reset()?;
         }
         // If we are in test mode, we need to reset.
-        if is_test_mode() {
-            reset();
+        if is_test_mode()? {
+            reset()?;
         }
         // Set to 24-hour time.
-        set_status(Status::HOUR_24);
+        set_status(Status::HOUR_24)?;
 
         let rtc_offset = try_read_datetime_offset()?;
 
@@ -421,7 +421,12 @@ impl<'de> Deserialize<'de> for Clock {
         if result.is_ok() {
             // Enable operations with the RTC via General Purpose I/O (GPIO).
             enable();
-            set_status(Status::HOUR_24);
+            set_status(Status::HOUR_24).map_err(|error| {
+                de::Error::custom(format_args!(
+                    "could not set RTC status 24 hour bit: {}",
+                    error
+                ))
+            })?;
             // If the power bit is active, the clock is unreadable.
             let status = try_read_status().map_err(|error| {
                 de::Error::custom(format_args!("could not read RTC status: {}", error))
@@ -432,7 +437,12 @@ impl<'de> Deserialize<'de> for Clock {
                 ));
             }
             // If we are in test mode, the clock is unreadable.
-            if is_test_mode() {
+            if is_test_mode().map_err(|error| {
+                de::Error::custom(format_args!(
+                    "could not detect if RTC is in test mode: {}",
+                    error
+                ))
+            })? {
                 return Err(de::Error::custom("RTC is in test mode and must be reset"));
             }
         }
@@ -449,11 +459,18 @@ pub fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::Clock;
+    use super::{
+        gpio,
+        Clock,
+        Error,
+    };
+    use crate::date_time::RtcDateTimeOffset;
     use claims::{
+        assert_err_eq,
         assert_ok,
         assert_ok_eq,
     };
+    use deranged::RangedU32;
     use gba_test::test;
     use time_macros::{
         date,
@@ -462,6 +479,19 @@ mod tests {
     };
 
     #[test]
+    #[cfg_attr(
+        not(no_rtc),
+        ignore = "This test requires the RTC to be disabled. Ensure no RTC is configured and pass `--cfg no_rtc` to enable."
+    )]
+    fn new_clock_not_enabled() {
+        assert_err_eq!(Clock::new(datetime!(2012-12-21 5:23)), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn read_datetime() {
         let datetime = datetime!(2012-12-21 5:23);
         let clock = assert_ok!(Clock::new(datetime));
@@ -470,6 +500,42 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(no_rtc),
+        ignore = "This test requires the RTC to be disabled. Ensure no RTC is configured and pass `--cfg no_rtc` to enable."
+    )]
+    fn read_datetime_not_enabled() {
+        // Manually enable RTC.
+        gpio::enable();
+        // Manually construct a `Clock` object, despite RTC being disabled.
+        //
+        // This is to simulate an RTC failing after `Clock` construction.
+        let clock = Clock {
+            base_date: date!(2012 - 12 - 21),
+            rtc_offset: RtcDateTimeOffset(RangedU32::new_static::<0>()),
+        };
+
+        assert_err_eq!(clock.read_datetime(), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
+    fn read_datetime_after_disabled() {
+        let clock = assert_ok!(Clock::new(datetime!(2012-12-21 5:23)));
+
+        gpio::disable();
+
+        assert_err_eq!(clock.read_datetime(), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn write_datetime() {
         let mut clock = assert_ok!(Clock::new(datetime!(2000-01-01 0:00)));
         let datetime = datetime!(2012-12-21 5:23);
@@ -480,6 +546,46 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(no_rtc),
+        ignore = "This test requires the RTC to be disabled. Ensure no RTC is configured and pass `--cfg no_rtc` to enable."
+    )]
+    fn write_datetime_not_enabled() {
+        // Manually enable RTC.
+        gpio::enable();
+        // Manually construct a `Clock` object, despite RTC being disabled.
+        //
+        // This is to simulate an RTC failing after `Clock` construction.
+        let mut clock = Clock {
+            base_date: date!(2012 - 12 - 21),
+            rtc_offset: RtcDateTimeOffset(RangedU32::new_static::<0>()),
+        };
+
+        assert_err_eq!(
+            clock.write_datetime(datetime!(2012-12-21 5:23)),
+            Error::NotEnabled
+        );
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
+    fn write_datetime_after_disabled() {
+        let datetime = datetime!(2012-12-21 5:23);
+        let mut clock = assert_ok!(Clock::new(datetime));
+
+        gpio::disable();
+
+        assert_err_eq!(clock.write_datetime(datetime), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn read_date() {
         let datetime = datetime!(2012-12-21 5:23);
         let clock = assert_ok!(Clock::new(datetime));
@@ -488,6 +594,42 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(no_rtc),
+        ignore = "This test requires the RTC to be disabled. Ensure no RTC is configured and pass `--cfg no_rtc` to enable."
+    )]
+    fn read_date_not_enabled() {
+        // Manually enable RTC.
+        gpio::enable();
+        // Manually construct a `Clock` object, despite RTC being disabled.
+        //
+        // This is to simulate an RTC failing after `Clock` construction.
+        let clock = Clock {
+            base_date: date!(2012 - 12 - 21),
+            rtc_offset: RtcDateTimeOffset(RangedU32::new_static::<0>()),
+        };
+
+        assert_err_eq!(clock.read_date(), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
+    fn read_date_after_disabled() {
+        let clock = assert_ok!(Clock::new(datetime!(2012-12-21 5:23)));
+
+        gpio::disable();
+
+        assert_err_eq!(clock.read_date(), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn write_date() {
         let mut clock = assert_ok!(Clock::new(datetime!(2000-01-01 0:00)));
 
@@ -497,6 +639,42 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(no_rtc),
+        ignore = "This test requires the RTC to be disabled. Ensure no RTC is configured and pass `--cfg no_rtc` to enable."
+    )]
+    fn write_date_not_enabled() {
+        // Manually enable RTC.
+        gpio::enable();
+        // Manually construct a `Clock` object, despite RTC being disabled.
+        //
+        // This is to simulate an RTC failing after `Clock` construction.
+        let mut clock = Clock {
+            base_date: date!(2012 - 12 - 21),
+            rtc_offset: RtcDateTimeOffset(RangedU32::new_static::<0>()),
+        };
+
+        assert_err_eq!(clock.write_date(date!(2012 - 12 - 21)), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
+    fn write_date_after_disabled() {
+        let mut clock = assert_ok!(Clock::new(datetime!(2000-01-01 0:00)));
+
+        gpio::disable();
+
+        assert_err_eq!(clock.write_date(date!(2012 - 12 - 21)), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn read_time() {
         let datetime = datetime!(2012-12-21 5:23);
         let clock = assert_ok!(Clock::new(datetime));
@@ -505,11 +683,79 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        not(no_rtc),
+        ignore = "This test requires the RTC to be disabled. Ensure no RTC is configured and pass `--cfg no_rtc` to enable."
+    )]
+    fn read_time_not_enabled() {
+        // Manually enable RTC.
+        gpio::enable();
+        // Manually construct a `Clock` object, despite RTC being disabled.
+        //
+        // This is to simulate an RTC failing after `Clock` construction.
+        let clock = Clock {
+            base_date: date!(2012 - 12 - 21),
+            rtc_offset: RtcDateTimeOffset(RangedU32::new_static::<0>()),
+        };
+
+        assert_err_eq!(clock.read_time(), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
+    fn read_time_after_disabled() {
+        let clock = assert_ok!(Clock::new(datetime!(2012-12-21 5:23)));
+
+        gpio::disable();
+
+        assert_err_eq!(clock.read_time(), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
     fn write_time() {
         let mut clock = assert_ok!(Clock::new(datetime!(2012-12-21 5:23)));
 
         assert_ok!(clock.write_time(time!(22:22)));
 
         assert_ok_eq!(clock.read_datetime(), datetime!(2012-12-21 22:22));
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(no_rtc),
+        ignore = "This test requires the RTC to be disabled. Ensure no RTC is configured and pass `--cfg no_rtc` to enable."
+    )]
+    fn write_time_not_enabled() {
+        // Manually enable RTC.
+        gpio::enable();
+        // Manually construct a `Clock` object, despite RTC being disabled.
+        //
+        // This is to simulate an RTC failing after `Clock` construction.
+        let mut clock = Clock {
+            base_date: date!(2012 - 12 - 21),
+            rtc_offset: RtcDateTimeOffset(RangedU32::new_static::<0>()),
+        };
+
+        assert_err_eq!(clock.write_time(time!(22:22)), Error::NotEnabled);
+    }
+
+    #[test]
+    #[cfg_attr(
+        not(rtc),
+        ignore = "This test requires a functioning RTC. Ensure an RTC is configured and pass `--cfg rtc` to enable."
+    )]
+    fn write_time_after_disabled() {
+        let mut clock = assert_ok!(Clock::new(datetime!(2000-01-01 0:00)));
+
+        gpio::disable();
+
+        assert_err_eq!(clock.write_time(time!(22:22)), Error::NotEnabled);
     }
 }
