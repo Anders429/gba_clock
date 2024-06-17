@@ -4,6 +4,9 @@
 ### Added
 - `Clock::read_date()` method for reading the current date by itself.
 - `Clock::write_date()` method for changing only the date.
+- `Error::NotEnabled` error variant to indicate the GPIO communication with the RTC is not properly enabled.
+### Fixed
+- All interactions with the RTC now check that the GPIO port is enabled, fixing issues with disabled reads being interpreted as correct values.
 
 ## 0.3.1 - 2023-12-11
 ### Fixed

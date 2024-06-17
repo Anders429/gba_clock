@@ -202,6 +202,11 @@ pub(crate) fn try_read_status() -> Result<Status, Error> {
     let previous_ime = unsafe { IME.read_volatile() };
     unsafe { IME.write_volatile(false) };
 
+    // Check if enabled.
+    if !is_enabled() {
+        return Err(Error::NotEnabled);
+    }
+
     // Request status.
     unsafe {
         DATA.write_volatile(Data::SCK);
@@ -235,13 +240,50 @@ pub(crate) fn enable() {
     }
 }
 
-pub(crate) fn reset() {
+/// Disable operations with the RTC via General Purpose I/O (GPIO).
+///
+/// This is only used for tests.
+#[cfg(test)]
+pub(crate) fn disable() {
+    unsafe {
+        ENABLE.write_volatile(0);
+    }
+}
+
+/// Check whether General Purpose I/O operations are enabled.
+///
+/// This should be verified before each interaction with the RTC. This is necessary because other
+/// code (whether in interrupts or just in other parts of the program) could disable the `ENABLE`
+/// register, causing GPIO reads to read `0` values. Without these checks, reading status or time
+/// values would result in seemingly correct reads, though the data would be wrong.
+///
+/// Additionally, this prevents issues with failing RTC chips, which could theoretically fail after
+/// being successfully enabled prior.
+fn is_enabled() -> bool {
+    unsafe {
+        // Reading `ENABLE` has varying effects depending on the environment. On mGBA, the
+        // previously stored `ENABLE` value is returned (usually `1`). On real hardware, it seems
+        // bits indicating the enabled GPIO pins are returned (for RTC-enabled carts, this is `7`).
+        // Carts without RTC (and mGBA) return `0`.
+        //
+        // In any case, it seems we can rely on this read returning `0` only if there is no RTC
+        // enabled.
+        ENABLE.read_volatile() != 0
+    }
+}
+
+pub(crate) fn reset() -> Result<(), Error> {
     // Disable interrupts, storing the previous value.
     //
     // This prevents interrupts while reading data from the device. This is necessary because GPIO
     // reads data one bit at a time.
     let previous_ime = unsafe { IME.read_volatile() };
     unsafe { IME.write_volatile(false) };
+
+    // Check if enabled.
+    if !is_enabled() {
+        return Err(Error::NotEnabled);
+    }
 
     // Request reset.
     unsafe {
@@ -259,6 +301,8 @@ pub(crate) fn reset() {
     unsafe {
         IME.write_volatile(previous_ime);
     }
+
+    Ok(())
 }
 
 /// Attempt to read the current RTC date and time value as an `RtcOffset`.
@@ -269,6 +313,11 @@ pub(crate) fn try_read_datetime_offset() -> Result<RtcDateTimeOffset, Error> {
     // reads data one bit at a time.
     let previous_ime = unsafe { IME.read_volatile() };
     unsafe { IME.write_volatile(false) };
+
+    // Check if enabled.
+    if !is_enabled() {
+        return Err(Error::NotEnabled);
+    }
 
     // Request datetime.
     unsafe {
@@ -317,7 +366,12 @@ pub(crate) fn try_read_time_offset() -> Result<RtcTimeOffset, Error> {
     let previous_ime = unsafe { IME.read_volatile() };
     unsafe { IME.write_volatile(false) };
 
-    // Request datetime.
+    // Check if enabled.
+    if !is_enabled() {
+        return Err(Error::NotEnabled);
+    }
+
+    // Request time.
     unsafe {
         DATA.write_volatile(Data::SCK);
         DATA.write_volatile(Data::CS | Data::SCK);
@@ -349,13 +403,18 @@ pub(crate) fn try_read_time_offset() -> Result<RtcTimeOffset, Error> {
     ))
 }
 
-pub(crate) fn is_test_mode() -> bool {
+pub(crate) fn is_test_mode() -> Result<bool, Error> {
     // Disable interrupts, storing the previous value.
     //
     // This prevents interrupts while reading data from the device. This is necessary because GPIO
     // reads data one bit at a time.
     let previous_ime = unsafe { IME.read_volatile() };
     unsafe { IME.write_volatile(false) };
+
+    // Check if enabled.
+    if !is_enabled() {
+        return Err(Error::NotEnabled);
+    }
 
     // Request time.
     unsafe {
@@ -383,16 +442,21 @@ pub(crate) fn is_test_mode() -> bool {
     }
 
     // Check whether the test flag is set.
-    second & 0b1000_0000 != 0
+    Ok(second & 0b1000_0000 != 0)
 }
 
-pub(crate) fn set_status(status: Status) {
+pub(crate) fn set_status(status: Status) -> Result<(), Error> {
     // Disable interrupts, storing the previous value.
     //
     // This prevents interrupts while reading data from the device. This is necessary because GPIO
     // reads data one bit at a time.
     let previous_ime = unsafe { IME.read_volatile() };
     unsafe { IME.write_volatile(false) };
+
+    // Check if enabled.
+    if !is_enabled() {
+        return Err(Error::NotEnabled);
+    }
 
     // Request status write.
     unsafe {
@@ -413,6 +477,8 @@ pub(crate) fn set_status(status: Status) {
     unsafe {
         IME.write_volatile(previous_ime);
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
